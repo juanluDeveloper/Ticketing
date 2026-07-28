@@ -1,0 +1,22 @@
+# Build
+target/
+build/
+dist/
+node_modules/
+
+# Imágenes de tickets subidas en local
+data/
+backend/data/
+
+# Entorno
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# SO
+Thumbs.db
+.DS_Store

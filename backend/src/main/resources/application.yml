@@ -1,0 +1,59 @@
+spring:
+  application:
+    name: ticketing
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/ticketing}
+    username: ${DB_USER:ticketing}
+    password: ${DB_PASSWORD:ticketing}
+
+  jpa:
+    # El esquema lo gobierna Flyway. Hibernate solo comprueba que las entidades
+    # cuadran con las migraciones; nunca lo genera.
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # Explícito: las semillas llevan caracteres chinos (nombre de Xinya).
+    encoding: UTF-8
+
+  servlet:
+    multipart:
+      # Fotos de móvil: 3-8 MB es lo normal. Los tickets necesitan resolución
+      # decente para que el VLM los lea, así que no conviene apretar esto.
+      max-file-size: 20MB
+      max-request-size: 25MB
+
+ticketing:
+  # Contraseña de arranque del usuario sembrado. Se hashea con BCrypt al primer
+  # arranque; en claro no se guarda nunca. Cambiarla: poner esta variable y
+  # dejar el hash en el centinela NEEDS_INIT.
+  seed-user-password: ${SEED_USER_PASSWORD:cambiame}
+
+  storage:
+    # Las imágenes originales se conservan siempre, para reextraer y auditar.
+    image-dir: ${TICKET_IMAGE_DIR:./data/ticket-images}
+
+  ollama:
+    base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+    # Confirmar el tag exacto en la librería de Ollama antes de fijarlo, y medir
+    # en la GTX 1070 real: docs/hallazgos_verificacion_tickets.md §7.
+    model: ${OLLAMA_MODEL:qwen3-vl:8b}
+    # Fijados a propósito para que dev (RTX 5070 Ti) y producción (GTX 1070)
+    # se comporten igual. Si estos valores no van iguales en las dos máquinas,
+    # la calidad de extracción que se mide en dev no es representativa.
+    num-ctx: ${OLLAMA_NUM_CTX:8192}
+    timeout-seconds: ${OLLAMA_TIMEOUT_SECONDS:600}
+
+  validation:
+    # Tolerancias de los checksums, en euros. La sub-línea de peso redondea:
+    # 1,394 kg x 3,05 EUR/kg = 4,2517 -> 4,25.
+    amount-tolerance: 0.01
+    weight-amount-tolerance: 0.02
+
+logging:
+  level:
+    com.juanluidos.ticketing: DEBUG
