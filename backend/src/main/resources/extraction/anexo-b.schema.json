@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Extracción de ticket — Anexo B",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "store",
+    "purchased_at",
+    "receipt_number",
+    "currency",
+    "decimal_separator",
+    "article_count",
+    "line_items",
+    "totals"
+  ],
+  "properties": {
+    "store": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "nif", "address"],
+      "properties": {
+        "name": { "type": "string" },
+        "nif": { "type": ["string", "null"] },
+        "address": { "type": ["string", "null"] }
+      }
+    },
+    "purchased_at": {
+      "type": ["string", "null"],
+      "description": "ISO-8601 sin zona, hora local del súper: 2026-06-24T21:51:00"
+    },
+    "receipt_number": { "type": ["string", "null"] },
+    "currency": { "type": "string" },
+    "decimal_separator": { "type": "string", "enum": [",", "."] },
+    "article_count": {
+      "type": ["integer", "null"],
+      "description": "Solo si el ticket lo imprime (Xinya: \"6 ART.\"). Null si no aparece."
+    },
+    "line_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "raw_row_text",
+          "raw_description",
+          "quantity",
+          "sold_by",
+          "weight",
+          "unit_price",
+          "unit_price_unit",
+          "line_total",
+          "tax_letter",
+          "is_promo",
+          "promo_note"
+        ],
+        "properties": {
+          "raw_row_text": {
+            "type": "string",
+            "description": "La fila física transcrita literal, tal cual está impresa y sin interpretar. Los demás campos de esta línea se leen de ESTA cadena."
+          },
+          "raw_description": { "type": "string" },
+          "quantity": { "type": "number" },
+          "sold_by": {
+            "type": "string",
+            "enum": ["unit", "weight", "piece_variable"]
+          },
+          "weight": {
+            "type": ["object", "null"],
+            "additionalProperties": false,
+            "required": ["value", "unit"],
+            "properties": {
+              "value": { "type": "number" },
+              "unit": { "type": "string" }
+            }
+          },
+          "unit_price": { "type": ["number", "null"] },
+          "unit_price_unit": { "type": ["string", "null"] },
+          "line_total": { "type": "number" },
+          "tax_letter": { "type": ["string", "null"] },
+          "is_promo": { "type": "boolean" },
+          "promo_note": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "totals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "tax_breakdown"],
+      "properties": {
+        "total": { "type": "number" },
+        "tax_breakdown": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["rate", "base", "tax"],
+            "properties": {
+              "rate": { "type": "number" },
+              "base": { "type": "number" },
+              "tax": { "type": "number" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

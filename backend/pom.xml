@@ -54,6 +54,19 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Revalida en el backend el JSON que devuelve el modelo: la salida
+             estructurada de Ollama fuerza la forma, no la veracidad.
+
+             Fijado en la línea 1.5.x y NO en la 3.x: la 3 migró a Jackson 3
+             (tools.jackson.databind) y Spring Boot 3.5 trae Jackson 2
+             (com.fasterxml.jackson.databind), así que usarla obligaría a
+             arrastrar las dos generaciones y convertir árboles entre ellas. -->
+        <dependency>
+            <groupId>com.networknt</groupId>
+            <artifactId>json-schema-validator</artifactId>
+            <version>1.5.9</version>
+        </dependency>
+
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
