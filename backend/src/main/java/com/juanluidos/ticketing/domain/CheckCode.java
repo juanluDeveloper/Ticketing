@@ -47,7 +47,26 @@ public enum CheckCode {
      * cantidad 1 e importes distintos. Sugiere {@link SoldBy#VARIABLE_PIECE}
      * (el caso de los tubos de pota).
      */
-    H2("Posible pieza de peso variable");
+    H2("Posible pieza de peso variable"),
+
+    /**
+     * Heurística semántica: el ticket entero sale clasificado como "a peso" o
+     * como "pieza de peso variable". Las dos son excepciones — lo normal es que
+     * casi todo sea envasado — así que un ticket uniforme en cualquiera de ellas
+     * es casi seguro una mala clasificación, no un ticket raro.
+     *
+     * <p>Importa porque se cuela en silencio: ninguna comprobación aritmética
+     * mira el {@code sold_by}, y clasificar mal deja el ticket entero fuera del
+     * precio normalizado y del conteo de subidas sin que nada chille.
+     */
+    H3("Todo el ticket con la misma clasificación de venta"),
+
+    /**
+     * Heurística: la fila transcrita no contiene el importe de la línea, así que
+     * la transcripción en dos etapas no ha ocurrido de verdad y la defensa
+     * contra el desplazamiento de columnas no está en efecto.
+     */
+    H4("Fila transcrita sin el importe");
 
     private final String description;
 

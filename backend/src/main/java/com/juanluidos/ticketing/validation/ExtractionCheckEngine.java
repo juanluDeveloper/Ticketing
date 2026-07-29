@@ -52,6 +52,8 @@ public class ExtractionCheckEngine {
         outcomes.add(checkTaxLetterBases(ticket, lines, store, taxLetters, findings));
         outcomes.add(checkArticleCount(ticket, lines, store, findings));
         outcomes.add(checkTaxBreakdownAgainstTotal(ticket, findings));
+        outcomes.add(checkSoldByPlausibility(lines, findings));
+        outcomes.add(checkRowTextCarriesAmount(lines, findings));
 
         int covered = (int) lines.stream().filter(l -> isCovered(l, store)).count();
         BigDecimal ratio = lines.isEmpty()
@@ -308,6 +310,94 @@ public class ExtractionCheckEngine {
         }
         return CheckReport.CheckOutcome.of(CheckCode.C5, ok, 0,
                 "bases+cuotas " + scale2(sum) + " contra total " + scale2(total));
+    }
+
+    // ------------------------------------------------------------------
+    // H3 — plausibilidad de sold_by
+    // ------------------------------------------------------------------
+
+    /**
+     * Ninguna comprobación aritmética mira {@code sold_by}, así que una mala
+     * clasificación pasa desapercibida y deja el ticket entero fuera del precio
+     * normalizado y del conteo de subidas.
+     *
+     * <p>Solo se sospecha de "weight" y "piece_variable", que son excepciones por
+     * naturaleza. Un ticket entero en "unit" es lo normal — el de Cash Fresh lo
+     * es y está bien clasificado — así que marcarlo daría un falso positivo en
+     * la mayoría de los tickets.
+     */
+    private CheckReport.CheckOutcome checkSoldByPlausibility(List<ExtractedLineItem> lines,
+                                                             List<CheckReport.LineFinding> findings) {
+        List<String> values = lines.stream()
+                .map(ExtractedLineItem::soldBy)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        if (values.size() < 3) {
+            return CheckReport.CheckOutcome.notApplicable(CheckCode.H3,
+                    "hacen falta al menos 3 líneas clasificadas para que la señal signifique algo");
+        }
+
+        String first = values.getFirst();
+        boolean uniform = values.stream().allMatch(first::equals);
+        boolean exceptional = "weight".equals(first) || "piece_variable".equals(first);
+
+        if (uniform && exceptional) {
+            findings.add(new CheckReport.LineFinding(null, CheckCode.H3, IssueSeverity.WARN,
+                    "Las " + values.size() + " líneas salen clasificadas como \"" + first
+                            + "\", que es la excepción y no lo normal. Casi seguro que están mal "
+                            + "clasificadas: revísalas antes de validar, porque así el ticket "
+                            + "entero queda fuera del precio normalizado.", null, null));
+            return CheckReport.CheckOutcome.of(CheckCode.H3, false, values.size(),
+                    "todas las líneas en \"" + first + "\"");
+        }
+        return CheckReport.CheckOutcome.of(CheckCode.H3, true, values.size(),
+                uniform ? "todas en \"" + first + "\", que es plausible" : "clasificación variada");
+    }
+
+    // ------------------------------------------------------------------
+    // H4 — la fila transcrita lleva el importe
+    // ------------------------------------------------------------------
+
+    /**
+     * La transcripción en dos etapas solo protege del desplazamiento de columnas
+     * si {@code raw_row_text} lleva la fila entera. Si trae solo la descripción,
+     * el importe se ha leído por separado y la defensa no está en efecto, aunque
+     * el resto de comprobaciones pasen.
+     */
+    private CheckReport.CheckOutcome checkRowTextCarriesAmount(List<ExtractedLineItem> lines,
+                                                               List<CheckReport.LineFinding> findings) {
+        List<ExtractedLineItem> withRowText = lines.stream()
+                .filter(l -> l.rawRowText() != null && !l.rawRowText().isBlank() && l.lineTotal() != null)
+                .toList();
+        if (withRowText.isEmpty()) {
+            return CheckReport.CheckOutcome.notApplicable(CheckCode.H4,
+                    "la extracción no transcribió ninguna fila");
+        }
+
+        int missing = 0;
+        for (ExtractedLineItem line : withRowText) {
+            if (!rowTextContainsAmount(line)) {
+                missing++;
+            }
+        }
+
+        if (missing > 0) {
+            findings.add(new CheckReport.LineFinding(null, CheckCode.H4, IssueSeverity.WARN,
+                    missing + " de " + withRowText.size() + " filas transcritas no contienen su "
+                            + "importe, así que se leyó por separado de la descripción. La "
+                            + "protección contra el desplazamiento de columnas no está actuando "
+                            + "en esas líneas.", null, null));
+        }
+        return CheckReport.CheckOutcome.of(CheckCode.H4, missing == 0, withRowText.size() - missing,
+                (withRowText.size() - missing) + " de " + withRowText.size()
+                        + " filas transcritas incluyen su importe");
+    }
+
+    /** El importe puede estar impreso con coma o con punto según el súper. */
+    private boolean rowTextContainsAmount(ExtractedLineItem line) {
+        String row = line.rawRowText();
+        String withDot = scale2(line.lineTotal()).toPlainString();
+        return row.contains(withDot) || row.contains(withDot.replace('.', ','));
     }
 
     // ------------------------------------------------------------------

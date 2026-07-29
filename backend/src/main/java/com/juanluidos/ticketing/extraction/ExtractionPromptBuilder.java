@@ -25,6 +25,12 @@ public class ExtractionPromptBuilder {
                 impresa, en el campo raw_row_text. No interpretes nada todavía.
                 2. Lee los demás campos de la línea A PARTIR de esa misma cadena.
 
+                raw_row_text tiene que llevar la FILA ENTERA, de un margen al otro: la \
+                descripción Y la cantidad Y el precio unitario Y el importe Y la letra de IVA, \
+                todo lo que esté impreso en esa misma línea del papel. NO vale poner solo la \
+                descripción: si el importe no está dentro de la cadena, este paso no sirve para \
+                nada. Ejemplo de lo que se espera: "1 CUBO FREGAR C/RUEDAS        3,70".
+
                 Esto es obligatorio porque las columnas del ticket están separadas por mucho \
                 espacio en blanco y el papel va arrugado: si lees la descripción y el importe por \
                 separado, acabas emparejando una descripción con el precio de la fila de al lado. \
@@ -35,16 +41,32 @@ public class ExtractionPromptBuilder {
                 que imprima el ticket. El campo decimal_separator solo declara lo que el ticket usa.
                 - quantity, unit_price y line_total tienen que cumplir quantity * unit_price = \
                 line_total. Si no te cuadra, has leído mal alguna fila: vuelve a mirarla.
-                - sold_by: "weight" si la línea trae peso y precio por kilo; "piece_variable" si \
-                es una pieza suelta cuyo precio final está impreso pero sin peso ni precio por \
-                kilo; "unit" en el resto.
-                - Si un dato no aparece en el ticket, ponlo a null. No lo inventes ni lo calcules. \
-                Para los campos de texto usa null, nunca la cadena vacía.
+
+                sold_by — decide en este orden y NO te saltes el primer punto:
+                1. Por DEFECTO, sold_by = "unit". Es lo que le toca a la inmensa mayoría de las \
+                líneas de cualquier ticket: cualquier cosa envasada, embotellada, enlatada, en \
+                bandeja, en paquete o vendida por piezas contadas. Un ticket normal tiene casi \
+                todas sus líneas en "unit".
+                2. sold_by = "weight" SOLO si en esa misma línea está impreso un peso Y un precio \
+                por kilo, del estilo "1,394 kg  3,05 €/kg".
+                3. sold_by = "piece_variable" SOLO en un caso muy concreto y muy raro: piezas \
+                sueltas de peso variable que se cobran una a una, donde el ticket imprime \
+                únicamente el precio final, SIN peso y SIN precio por kilo, y donde por eso el \
+                mismo producto aparece repetido en el ticket con importes distintos. El ejemplo \
+                típico es el tubo de pota. Si no se cumple TODO eso, NO es "piece_variable".
+                No marques "piece_variable" solo porque la cantidad sea 1: eso es "unit". Si te \
+                salen muchas líneas con "piece_variable", te has equivocado.
+
+                - Si un dato no aparece en el ticket, ponlo a null. No lo inventes ni lo \
+                calcules. Para los campos de texto usa null, nunca la cadena vacía.
                 - purchased_at va EXACTAMENTE como AAAA-MM-DDTHH:MM:SS, con la T en medio. \
-                Si el ticket no imprime segundos, pon 00.
+                Si el ticket no imprime segundos, pon 00. Copia las CUATRO cifras del año tal \
+                cual están impresas, sin cambiar ninguna: si el ticket pone 2026, es 2026.
                 - store.nif es solo el número: "B-90379843", sin el "NIF:" ni el "CIF:" de delante.
-                - currency es la moneda del importe cobrado, que la marca el país del comercio, \
-                NO el idioma en que esté escrito el ticket.
+                - currency es el código ISO de TRES LETRAS mayúsculas: "EUR". Nunca el símbolo \
+                "€" ni el nombre de la moneda. La moneda la marca el país del comercio, NO el \
+                idioma en que esté escrito el ticket: un comercio en España cobra en EUR aunque \
+                el ticket esté en chino.
                 - En tax_breakdown, rate va como FRACCIÓN, no como porcentaje: el 21% se escribe \
                 0.21, el 10% se escribe 0.10 y el 4% se escribe 0.04.
                 - tax_letter es UNA sola letra mayúscula, o null. Nunca una palabra ni un trozo de \
