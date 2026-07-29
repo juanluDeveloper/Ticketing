@@ -1,0 +1,28 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/ticketing}
+    username: ${DB_USER:ticketing}
+    password: ${DB_PASSWORD:ticketing}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    encoding: UTF-8
+
+ticketing:
+  seed-user-password: test
+  storage:
+    image-dir: ./target/test-ticket-images
+  ollama:
+    base-url: http://localhost:11434
+    model: qwen3-vl:8b
+    num-ctx: 8192
+    timeout-seconds: 600
+  validation:
+    amount-tolerance: 0.01
+    weight-amount-tolerance: 0.02

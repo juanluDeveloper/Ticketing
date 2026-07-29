@@ -40,8 +40,9 @@ public class PriceObservation {
     private BigDecimal pricePerPiece;
 
     /**
-     * € por unidad base. Null si no es normalizable: pieza de peso variable, o
-     * tamaño de envase aún sin rellenar.
+     * € por unidad canónica de la dimensión: €/kg, €/L o €/ud, la misma unidad
+     * en la que se expresa la prima de preferencia. Null si no es normalizable:
+     * pieza de peso variable, o tamaño de envase aún sin rellenar.
      */
     @Column(name = "normalized_unit_price", precision = 16, scale = 6)
     private BigDecimal normalizedUnitPrice;

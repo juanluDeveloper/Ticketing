@@ -310,10 +310,52 @@ Comprobado en la máquina de desarrollo:
 | Node 24.12.0 / npm 11.6.2 | instalado |
 | Git | instalado |
 | RTX 5070 Ti 16 GB, driver 610.62 | presente |
-| **Docker / Docker Compose** | **no instalado** |
-| **Ollama** | **no instalado** |
-| psql (cliente) | no instalado |
+| Docker / Docker Compose | instalado (WSL2) |
+| Ollama con `qwen3-vl:8b` | instalado, probado a mano con el Xinya |
+| psql (cliente en el host) | no instalado; se usa `docker exec` |
 
-Sin Docker no se puede cumplir el paso 2 del método de trabajo (`docker-compose up`
-levanta Postgres). Sin Ollama no hay extracción que verificar contra las fotos.
-Ambos son requisito previo al primer hito.
+### Conflicto de puerto: hay otro Postgres en la máquina
+
+El servicio de Windows **`postgresql-x64-18` está instalado y corriendo**, escuchando en
+`0.0.0.0:5432`. Al mapear el contenedor a 5432, Docker solo consiguió enganchar `::5432`
+(IPv6) y no avisó: `docker compose ps` mostraba el puerto publicado y el contenedor
+sano. Pero `jdbc:postgresql://localhost:5432` resuelve a IPv4, así que las conexiones
+iban al **Postgres 18 del host**, que no tiene el rol `ticketing`, y fallaban con
+`FATAL: la autentificación password falló para el usuario «ticketing»`.
+
+Síntoma engañoso: parece un problema de credenciales del contenedor, y no lo es. La
+prueba que lo separa es autenticar por TCP **dentro** del contenedor
+(`docker exec ... psql "postgresql://ticketing:ticketing@127.0.0.1:5432/ticketing"`): si
+ahí funciona, el problema es a quién se está conectando el host, no la contraseña.
+
+**Resuelto** publicando el contenedor en **5433**, sin tocar el servicio del host.
+`DB_URL` por defecto apunta ya a 5433.
+
+### Colación
+
+`postgres:17-alpine` corre sobre musl y no trae locales del sistema: un `LANG=es_ES.utf8`
+se ignora con `WARNING: no usable system locales were found` y el cluster queda en `C`.
+Se usa el proveedor **ICU** (`--locale-provider=icu --icu-locale=es-ES`), que no depende
+de locales instalados, para que el orden alfabético de nombres de producto respete
+acentos y ñ.
+
+---
+
+## 11. Contrato del cliente de extracción
+
+Observado probando `qwen3-vl:8b` a mano contra la foto del Xinya (el peor caso: OCR
+chino, punto decimal, dos líneas por producto). El modelo lee el chino bien, entiende la
+estructura de dos líneas y llega a cruzar el "6 ART." con las cantidades por su cuenta.
+El enfoque local es viable. Dos cosas que el cliente tiene que forzar:
+
+- **Sale con `Thinking...` y razonamiento en voz alta.** Hay que usar la **API nativa de
+  Ollama** (`POST /api/chat`) con `format` = el JSON Schema del Anexo B, para que la
+  respuesta sea solo el JSON. No vale pedirlo en el prompt y confiar.
+- **Las claves salen con tildes y espacios** ("precio unitario") si no se fijan. El
+  esquema debe declararlas exactamente como el Anexo B, en snake_case sin acentos
+  (`precio_unitario`, `importe_linea`, …), y `required` en todas, para que la
+  decodificación restringida no deje margen.
+- El backend **revalida el JSON contra el esquema** de todos modos: la decodificación
+  restringida fuerza la forma, no la veracidad.
+- Recordatorio de §6: el modelo devuelve primero la fila física literal
+  (`raw_row_text`) y los campos se derivan de esa cadena.

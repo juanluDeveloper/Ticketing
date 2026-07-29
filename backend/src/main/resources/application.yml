@@ -3,7 +3,7 @@ spring:
     name: ticketing
 
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/ticketing}
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/ticketing}
     username: ${DB_USER:ticketing}
     password: ${DB_PASSWORD:ticketing}
 

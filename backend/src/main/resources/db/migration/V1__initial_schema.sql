@@ -85,11 +85,17 @@ CREATE TABLE comparable_group (
     -- en litros no son comparables (§3).
     comparison_dimension VARCHAR(10)  NOT NULL
         CONSTRAINT ck_group_dimension CHECK (comparison_dimension IN ('WEIGHT', 'VOLUME', 'UNIT')),
-    -- Unidad legible en la que se compara y en la que se expresa el margen de
-    -- preferencia: kg, L, ud. NO la unidad base (€/g es ilegible), ver §9.
+    -- Unidad canónica de la dimensión. No es texto libre: la serie de precios,
+    -- el ranking y la prima de preferencia tienen que hablar todos la misma, o
+    -- el comparador acaba con una conversión implícita de factor 1000.
     comparison_unit      VARCHAR(10)  NOT NULL,
     notes                TEXT,
-    created_at           TIMESTAMP    NOT NULL DEFAULT now()
+    created_at           TIMESTAMP    NOT NULL DEFAULT now(),
+    CONSTRAINT ck_group_unit_matches_dimension CHECK (
+        (comparison_dimension = 'WEIGHT' AND comparison_unit = 'kg') OR
+        (comparison_dimension = 'VOLUME' AND comparison_unit = 'L') OR
+        (comparison_dimension = 'UNIT' AND comparison_unit = 'ud')
+        )
 );
 
 -- ---------------------------------------------------------------------------
@@ -298,10 +304,13 @@ CREATE TABLE price_observation (
     quantity              NUMERIC(12, 4) NOT NULL,
     line_total            NUMERIC(12, 4) NOT NULL,
     price_per_piece       NUMERIC(12, 4),
+    -- € por unidad canónica de la dimensión: €/kg, €/L o €/ud. Misma unidad que
+    -- la prima de preferencia, a propósito.
     -- NULL si no normalizable: pieza de peso variable, o falta el tamaño de
     -- envase todavía sin rellenar (§6 del análisis).
     normalized_unit_price NUMERIC(16, 6),
-    normalized_unit       VARCHAR(10),
+    normalized_unit       VARCHAR(10)
+        CONSTRAINT ck_observation_unit CHECK (normalized_unit IN ('kg', 'L', 'ud')),
     is_promo              BOOLEAN      NOT NULL DEFAULT FALSE,
     -- FALSE para VARIABLE_PIECE y para promociones: la variación no es subida real.
     counts_for_increase   BOOLEAN      NOT NULL DEFAULT TRUE,
