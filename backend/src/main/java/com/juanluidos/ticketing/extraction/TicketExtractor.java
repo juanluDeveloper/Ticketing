@@ -61,11 +61,34 @@ public class TicketExtractor {
 
     private JsonNode parse(String rawResponse) {
         try {
-            return objectMapper.readTree(stripCodeFence(rawResponse));
+            return objectMapper.readTree(isolateJsonObject(stripCodeFence(rawResponse)));
         } catch (JsonProcessingException e) {
             throw new ExtractionException(
-                    "La respuesta del modelo no es JSON: " + preview(rawResponse), e);
+                    "La respuesta del modelo no es JSON. Empieza por: " + head(rawResponse)
+                            + " ... y acaba por: " + tail(rawResponse), e);
         }
+    }
+
+    /**
+     * Se queda con el objeto JSON aunque venga precedido de texto.
+     *
+     * <p>Con {@code think: true} el razonamiento va aparte y esto no hace falta,
+     * pero el comportamiento depende de que el modelo emita bien sus marcas de
+     * razonamiento. Si no lo hace, la prosa aparece delante del JSON dentro de
+     * {@code content} y perder la extracción entera por eso sería absurdo,
+     * habiendo pagado ya los minutos de GPU.
+     */
+    private String isolateJsonObject(String raw) {
+        if (raw.startsWith("{")) {
+            return raw;
+        }
+        int start = raw.indexOf('{');
+        int end = raw.lastIndexOf('}');
+        if (start < 0 || end <= start) {
+            return raw;
+        }
+        log.warn("La respuesta traía texto alrededor del JSON; se recorta a las llaves.");
+        return raw.substring(start, end + 1);
     }
 
     /**
@@ -103,9 +126,15 @@ public class TicketExtractor {
         return trimmed.substring(firstNewline + 1, closing).trim();
     }
 
-    private String preview(String raw) {
+    private String head(String raw) {
         String trimmed = raw == null ? "" : raw.trim();
-        return trimmed.length() <= 300 ? trimmed : trimmed.substring(0, 300) + "…";
+        return trimmed.length() <= 300 ? trimmed : trimmed.substring(0, 300);
+    }
+
+    /** El final importa: dice si el JSON llegó a escribirse detrás de la prosa. */
+    private String tail(String raw) {
+        String trimmed = raw == null ? "" : raw.trim();
+        return trimmed.length() <= 300 ? "" : trimmed.substring(trimmed.length() - 300);
     }
 
     public record Result(ExtractedTicket ticket, String rawJson) {

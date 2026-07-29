@@ -76,7 +76,11 @@
           "unit_price": { "type": ["number", "null"] },
           "unit_price_unit": { "type": ["string", "null"] },
           "line_total": { "type": "number" },
-          "tax_letter": { "type": ["string", "null"] },
+          "tax_letter": {
+            "type": ["string", "null"],
+            "maxLength": 1,
+            "description": "Una sola letra mayúscula (A/B/C) o null. El modelo tiende a meter aquí trozos de la descripción si no se acota."
+          },
           "is_promo": { "type": "boolean" },
           "promo_note": { "type": ["string", "null"] }
         }

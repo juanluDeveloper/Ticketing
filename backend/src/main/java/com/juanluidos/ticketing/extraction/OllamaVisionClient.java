@@ -53,25 +53,19 @@ public class OllamaVisionClient {
         String base64 = Base64.getEncoder().encodeToString(image);
 
         try {
-            return call(buildBody(prompt, base64, format, true));
+            return call(buildBody(prompt, base64, format));
         } catch (RestClientResponseException e) {
-            // No todos los modelos declaran capacidad de razonamiento, y a los
-            // que no la tienen Ollama les rechaza el campo "think". Se reintenta
-            // sin él en vez de dar la extracción por fallida.
-            if (mentionsThinkingUnsupported(e)) {
-                log.debug("El modelo {} no acepta 'think'; reintento sin el campo.", config.model());
-                return call(buildBody(prompt, base64, format, false));
-            }
             throw new ExtractionException(
                     "Ollama respondió " + e.getStatusCode() + ": " + e.getResponseBodyAsString(), e);
+        } catch (ExtractionException e) {
+            throw e;
         } catch (Exception e) {
             throw new ExtractionException(
                     "No se pudo llamar a Ollama en " + config.baseUrl(), e);
         }
     }
 
-    private Map<String, Object> buildBody(String prompt, String base64Image,
-                                          JsonNode format, boolean disableThinking) {
+    private Map<String, Object> buildBody(String prompt, String base64Image, JsonNode format) {
         Map<String, Object> message = new LinkedHashMap<>();
         message.put("role", "user");
         message.put("content", prompt);
@@ -84,11 +78,18 @@ public class OllamaVisionClient {
         // ni de menos, ni renombrarlos con tildes o espacios.
         body.put("format", format);
         body.put("stream", false);
-        if (disableThinking) {
-            // Sin esto, los modelos híbridos sacan su razonamiento en voz alta
-            // antes del JSON.
-            body.put("think", false);
-        }
+        // Medido contra qwen3-vl:8b en Ollama 0.32.5 con las tres fotos reales:
+        //   sin el campo / think=true -> el modelo razona en voz alta antes del
+        //       JSON. En el ticket corto sobra presupuesto y sale bien, pero en
+        //       Mercadona y Cash Fresh el razonamiento se come el contexto
+        //       entero y la respuesta termina a media frase, sin JSON ninguno.
+        //   think=false -> el modelo NO razona y emite el JSON directamente.
+        //       Ollama lo etiqueta mal (sale por "thinking" y "content" llega
+        //       vacío), pero el JSON está entero, que es lo que importa. De eso
+        //       se encarga el respaldo de call().
+        // Es decir: think=false no se pide para limpiar la salida, se pide para
+        // no gastar el contexto en razonamiento que no aporta.
+        body.put("think", false);
         body.put("options", Map.of(
                 // Fijado en configuración para que dev y producción se comporten
                 // igual; si difieren, medir la calidad en dev no dice nada.
@@ -106,19 +107,29 @@ public class OllamaVisionClient {
                 .retrieve()
                 .body(OllamaChatResponse.class);
 
-        if (response == null || response.message() == null || response.message().content() == null) {
-            throw new ExtractionException("Ollama devolvió una respuesta sin contenido");
+        if (response == null || response.message() == null) {
+            throw new ExtractionException("Ollama devolvió una respuesta sin mensaje");
         }
-        return response.message().content();
-    }
 
-    private boolean mentionsThinkingUnsupported(RestClientResponseException e) {
-        String body = e.getResponseBodyAsString();
-        return body != null && body.toLowerCase().contains("think");
+        String content = response.message().content();
+        if (content != null && !content.isBlank()) {
+            return content;
+        }
+
+        // Red de seguridad para la rareza de arriba: si alguna combinación de
+        // modelo y versión vuelve a mandar el JSON por "thinking", se aprovecha
+        // en vez de perder la extracción.
+        String thinking = response.message().thinking();
+        if (thinking != null && !thinking.isBlank()) {
+            log.warn("Ollama devolvió 'content' vacío y el JSON en 'thinking'; se usa 'thinking'.");
+            return thinking;
+        }
+
+        throw new ExtractionException("Ollama devolvió una respuesta sin contenido");
     }
 
     record OllamaChatResponse(Message message, String model, Boolean done) {
-        record Message(String role, String content) {
+        record Message(String role, String content, String thinking) {
         }
     }
 }

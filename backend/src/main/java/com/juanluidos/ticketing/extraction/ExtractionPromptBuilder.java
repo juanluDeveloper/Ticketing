@@ -38,7 +38,17 @@ public class ExtractionPromptBuilder {
                 - sold_by: "weight" si la línea trae peso y precio por kilo; "piece_variable" si \
                 es una pieza suelta cuyo precio final está impreso pero sin peso ni precio por \
                 kilo; "unit" en el resto.
-                - Si un dato no aparece en el ticket, ponlo a null. No lo inventes ni lo calcules.
+                - Si un dato no aparece en el ticket, ponlo a null. No lo inventes ni lo calcules. \
+                Para los campos de texto usa null, nunca la cadena vacía.
+                - purchased_at va EXACTAMENTE como AAAA-MM-DDTHH:MM:SS, con la T en medio. \
+                Si el ticket no imprime segundos, pon 00.
+                - store.nif es solo el número: "B-90379843", sin el "NIF:" ni el "CIF:" de delante.
+                - currency es la moneda del importe cobrado, que la marca el país del comercio, \
+                NO el idioma en que esté escrito el ticket.
+                - En tax_breakdown, rate va como FRACCIÓN, no como porcentaje: el 21% se escribe \
+                0.21, el 10% se escribe 0.10 y el 4% se escribe 0.04.
+                - tax_letter es UNA sola letra mayúscula, o null. Nunca una palabra ni un trozo de \
+                la descripción.
                 - NO extraigas números de tarjeta, códigos de autorización, ARC ni AID. No \
                 pertenecen al esquema.
 
