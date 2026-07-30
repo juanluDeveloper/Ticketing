@@ -3,9 +3,11 @@ import { api, clearCredentials, hasCredentials, setCredentials } from './api.js'
 import UploadView from './UploadView.jsx'
 import TicketList from './TicketList.jsx'
 import ValidationView from './ValidationView.jsx'
+import HistoryView from './HistoryView.jsx'
 
 export default function App() {
   const [authed, setAuthed] = useState(hasCredentials())
+  const [tab, setTab] = useState('tickets')
   const [openTicketId, setOpenTicketId] = useState(null)
   const [reloadToken, setReloadToken] = useState(0)
 
@@ -15,6 +17,26 @@ export default function App() {
     <div className="app">
       <header>
         <h1>Tickets de la compra</h1>
+        <nav>
+          <button
+            className={tab === 'tickets' ? 'tab active' : 'tab'}
+            onClick={() => {
+              setTab('tickets')
+              setOpenTicketId(null)
+            }}
+          >
+            Tickets
+          </button>
+          <button
+            className={tab === 'historico' ? 'tab active' : 'tab'}
+            onClick={() => {
+              setTab('historico')
+              setOpenTicketId(null)
+            }}
+          >
+            Histórico
+          </button>
+        </nav>
         <button
           className="link"
           onClick={() => {
@@ -26,20 +48,23 @@ export default function App() {
         </button>
       </header>
 
-      {openTicketId ? (
-        <ValidationView
-          ticketId={openTicketId}
-          onClose={() => {
-            setOpenTicketId(null)
-            setReloadToken((n) => n + 1)
-          }}
-        />
-      ) : (
-        <>
-          <UploadView onUploaded={(id) => setOpenTicketId(id)} />
-          <TicketList reloadToken={reloadToken} onOpen={setOpenTicketId} />
-        </>
-      )}
+      {tab === 'historico' && <HistoryView />}
+
+      {tab === 'tickets' &&
+        (openTicketId ? (
+          <ValidationView
+            ticketId={openTicketId}
+            onClose={() => {
+              setOpenTicketId(null)
+              setReloadToken((n) => n + 1)
+            }}
+          />
+        ) : (
+          <>
+            <UploadView onUploaded={(id) => setOpenTicketId(id)} />
+            <TicketList reloadToken={reloadToken} onOpen={setOpenTicketId} />
+          </>
+        ))}
     </div>
   )
 }

@@ -56,6 +56,8 @@ export const api = {
   image: (id) => request(`/tickets/${id}/image`, { raw: true }),
   stores: () => request('/stores'),
   categories: () => request('/categories'),
+  products: (storeId) => request(`/products${storeId ? `?storeId=${storeId}` : ''}`),
+  productHistory: (id) => request(`/products/${id}/history`),
   searchProducts: (storeId, q) =>
     request(`/stores/${storeId}/products?q=${encodeURIComponent(q || '')}`),
 }

@@ -147,6 +147,25 @@ tr.pickerrow td { background: var(--fondo-suave); }
 
 .actions { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; padding: 1rem 0; }
 
+/* --- histórico --- */
+header nav { display: flex; gap: .3rem; flex: 1; }
+.tab { border: none; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--gris); }
+.tab.active { color: var(--verde); border-bottom-color: var(--verde); font-weight: 600; }
+
+.notes { background: var(--fondo-suave); padding: .5rem .7rem; border-radius: 4px; }
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: .8rem;
+  margin: 1rem 0;
+}
+.metrics dt { font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; color: var(--gris); }
+.metrics dd { margin: .15rem 0 0; font-size: 1.1rem; }
+
+.chart { width: 100%; max-width: 640px; height: auto; margin: 1rem 0; }
+.chart .axis { font-size: 10px; fill: var(--gris); }
+
 @media (max-width: 900px) {
   .split { grid-template-columns: 1fr; }
   .photo { position: static; }
