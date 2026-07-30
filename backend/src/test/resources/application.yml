@@ -1,4 +1,10 @@
 spring:
+  # Perfil de test para que SeedUserInitializer no corra: @SpringBootTest ejecuta
+  # los ApplicationRunner igual que el arranque normal, y dev y test comparten
+  # base, así que sin esto lanzar los tests cambiaba la contraseña de desarrollo.
+  profiles:
+    active: test
+
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5433/ticketing}
     username: ${DB_USER:ticketing}

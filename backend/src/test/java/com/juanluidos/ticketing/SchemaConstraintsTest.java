@@ -36,6 +36,15 @@ class SchemaConstraintsTest {
     private Long mercadonaId;
     private Long cashFreshId;
 
+    /**
+     * Los números de recibo se generan únicos por ejecución. Con valores fijos, el
+     * test chocaba contra tickets reales ya guardados en la base de desarrollo —
+     * el rollback protege lo que inserta el test, no lo que ya estaba.
+     */
+    private String receipt(String suffix) {
+        return "TEST-" + java.util.UUID.randomUUID().toString().substring(0, 8) + "-" + suffix;
+    }
+
     @BeforeEach
     void loadSeeds() {
         userId = jdbc.queryForObject(
@@ -53,9 +62,10 @@ class SchemaConstraintsTest {
     /** El mismo ticket subido dos veces duplicaría todo su histórico de precios. */
     @Test
     void rejectsTheSameReceiptNumberTwiceInTheSameStore() {
-        insertTicket(mercadonaId, "2276-012-556655", "sha-a");
+        String number = receipt("dup");
+        insertTicket(mercadonaId, number, "sha-a");
 
-        assertThatThrownBy(() -> insertTicket(mercadonaId, "2276-012-556655", "sha-b"))
+        assertThatThrownBy(() -> insertTicket(mercadonaId, number, "sha-b"))
                 .isInstanceOf(DuplicateKeyException.class)
                 .hasMessageContaining("uq_ticket_receipt_number");
     }
@@ -63,9 +73,10 @@ class SchemaConstraintsTest {
     /** Dos súper distintos pueden numerar sus recibos igual sin que sea un duplicado. */
     @Test
     void allowsTheSameReceiptNumberInDifferentStores() {
-        insertTicket(mercadonaId, "0001", "sha-c");
+        String shared = receipt("shared");
+        insertTicket(mercadonaId, shared, "sha-c");
 
-        assertThatCode(() -> insertTicket(cashFreshId, "0001", "sha-d"))
+        assertThatCode(() -> insertTicket(cashFreshId, shared, "sha-d"))
                 .doesNotThrowAnyException();
     }
 
@@ -76,15 +87,21 @@ class SchemaConstraintsTest {
      */
     @Test
     void allowsSeveralTicketsWithoutReceiptNumber() {
-        insertTicket(mercadonaId, null, "sha-e");
+        // Se mide el incremento, no el total: la base de desarrollo puede tener
+        // ya tickets reales sin número y el test no debe depender de eso.
+        int before = countTicketsWithoutReceiptNumber();
 
+        insertTicket(mercadonaId, null, "sha-e");
         assertThatCode(() -> insertTicket(mercadonaId, null, "sha-f"))
                 .doesNotThrowAnyException();
 
-        Integer withoutNumber = jdbc.queryForObject(
+        assertThat(countTicketsWithoutReceiptNumber()).isEqualTo(before + 2);
+    }
+
+    private int countTicketsWithoutReceiptNumber() {
+        return jdbc.queryForObject(
                 "SELECT count(*) FROM ticket WHERE store_id = ? AND receipt_number IS NULL",
                 Integer.class, mercadonaId);
-        assertThat(withoutNumber).isEqualTo(2);
     }
 
     // -----------------------------------------------------------------------
@@ -94,7 +111,7 @@ class SchemaConstraintsTest {
     /** Borrar un ticket no puede dejar líneas, desglose de IVA ni hallazgos sueltos. */
     @Test
     void deletingATicketRemovesEverythingDerivedFromIt() {
-        Long ticketId = insertTicket(mercadonaId, "9001", "sha-g");
+        Long ticketId = insertTicket(mercadonaId, receipt("casc"), "sha-g");
         Long productId = insertStoreProduct("PRODUCTO CASCADA A");
         Long lineId = insertLineItem(ticketId, productId);
         insertTaxSummary(ticketId);
@@ -124,7 +141,7 @@ class SchemaConstraintsTest {
     /** Borrar una línea suelta arrastra sus hallazgos y sus observaciones. */
     @Test
     void deletingALineItemRemovesItsIssuesAndObservations() {
-        Long ticketId = insertTicket(mercadonaId, "9002", "sha-h");
+        Long ticketId = insertTicket(mercadonaId, receipt("casc2"), "sha-h");
         Long productId = insertStoreProduct("PRODUCTO CASCADA B");
         Long lineId = insertLineItem(ticketId, productId);
         insertValidationIssue(ticketId, lineId);

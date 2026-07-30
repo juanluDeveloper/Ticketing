@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,7 +18,14 @@ import org.springframework.transaction.annotation.Transactional;
  * no dejar ninguna contraseña en el repositorio. Para cambiarla: poner
  * {@code SEED_USER_PASSWORD} y devolver el hash al centinela.
  */
+/**
+ * No corre bajo el perfil de test. {@code @SpringBootTest} ejecuta los
+ * ApplicationRunner igual que el arranque normal, y como dev y test comparten
+ * base, lanzar los tests dejaba la contraseña del usuario puesta a la del
+ * application.yml de test sin que nada lo dijera.
+ */
 @Component
+@Profile("!test")
 public class SeedUserInitializer implements ApplicationRunner {
 
     static final String SENTINEL = "NEEDS_INIT";

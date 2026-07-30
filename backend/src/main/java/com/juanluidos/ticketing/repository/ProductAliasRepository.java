@@ -25,17 +25,31 @@ public interface ProductAliasRepository extends JpaRepository<ProductAlias, Long
      * alfabeto latino.
      */
     @Query(value = """
-            SELECT a.*
+            SELECT a.id AS aliasId,
+                   a.store_product_id AS storeProductId,
+                   a.raw_text AS rawText,
+                   similarity(COALESCE(a.latin_text, a.normalized_text), :candidate) AS similarity
             FROM product_alias a
             WHERE a.store_id = :storeId
               AND similarity(COALESCE(a.latin_text, a.normalized_text), :candidate) >= :threshold
-            ORDER BY similarity(COALESCE(a.latin_text, a.normalized_text), :candidate) DESC
+            ORDER BY similarity DESC
             LIMIT :maxResults
             """, nativeQuery = true)
-    List<ProductAlias> findSimilar(@Param("storeId") Long storeId,
+    List<SimilarAlias> findSimilar(@Param("storeId") Long storeId,
                                    @Param("candidate") String candidate,
                                    @Param("threshold") double threshold,
                                    @Param("maxResults") int maxResults);
+
+    /** Proyección con la similitud, que es lo que se guarda como match_confidence. */
+    interface SimilarAlias {
+        Long getAliasId();
+
+        Long getStoreProductId();
+
+        String getRawText();
+
+        Double getSimilarity();
+    }
 
     List<ProductAlias> findByStoreProductId(Long storeProductId);
 }

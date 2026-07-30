@@ -76,11 +76,16 @@ public class ExtractionPromptBuilder {
 
                 """);
 
-        p.append("FORMATO DE ESTE TICKET — ").append(store.getName());
-        if (store.getTaxId() != null) {
-            p.append(" (").append(store.getTaxId()).append(")");
+        if (store == null) {
+            return p.append(genericFormatRules()).toString();
         }
-        p.append(":\n");
+
+        // El NIF NO se le dice: tiene que leerlo de la cabecera. Dárselo escrito
+        // hacía que lo copiara en vez de leerlo, y entonces la autodetección de
+        // súper era circular — nunca podía contradecir la pista, así que un
+        // ticket con la pista equivocada se quedaba mal etiquetado para siempre.
+        p.append("FORMATO DE ESTE TICKET — ").append(store.getName()).append(":\n");
+        p.append("- Lee el NIF/CIF de la cabecera tal cual esté impreso, cifra a cifra.\n");
 
         p.append("- Separador decimal impreso: ")
                 .append("\"").append(store.getDecimalSeparator()).append("\"")
@@ -131,5 +136,30 @@ public class ExtractionPromptBuilder {
         }
 
         return p.toString();
+    }
+
+    /**
+     * Cuando todavía no se sabe de qué súper es el ticket.
+     *
+     * <p>Antes se cogía el primer súper de la base para tener algo que contar del
+     * layout, y eso es peor que no decir nada: al ticket de Cash Fresh se le
+     * aplicaron las reglas de Xinya, que declaran que no hay letra de IVA por
+     * línea. Aquí no se afirma nada del formato y se deja que la foto mande.
+     */
+    private String genericFormatRules() {
+        return """
+                FORMATO DE ESTE TICKET — todavía sin identificar:
+                - Lee el NIF/CIF de la cabecera tal cual esté impreso, cifra a cifra. Es lo que
+                  identifica el comercio, así que no te lo inventes ni lo dejes a medias.
+                - Detecta tú el separador decimal que usa el ticket y decláralo en
+                  decimal_separator. Recuerda que en el JSON los números van con punto.
+                - Si alguna línea acaba en una letra de IVA a la derecha del importe, cópiala en
+                  tax_letter. Si el ticket no las imprime, deja tax_letter a null en todas.
+                - Si el ticket imprime un recuento de artículos, ponlo en article_count; si no, null.
+                - Si un artículo trae debajo una sub-línea con peso y precio por kilo, esa
+                  sub-línea pertenece al artículo de arriba y no es una línea aparte.
+                - La cantidad puede ir al principio de la descripción o en medio como "Nx precio",
+                  según el súper. Sea donde sea, devuélvela siempre en quantity.
+                """;
     }
 }
