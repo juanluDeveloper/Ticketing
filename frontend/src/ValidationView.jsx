@@ -286,6 +286,16 @@ function LineRow({ line, storeCode, edited, valueOf, patch }) {
               ? line.product.displayName || line.product.canonicalName
               : '— sin asignar —'}
           </button>
+          {/* El extractor genera líneas que no existen en el papel: la sub-línea
+              de peso salió como ítem propio y rompía el cuadre del total. */}
+          <button
+            className="link danger"
+            title="Borrar esta línea"
+            onClick={() => patch(line.id, 'delete', true)}
+          >
+            {' '}
+            ✕
+          </button>
           {line.matchMethod && (
             <span className="muted small">
               {' '}

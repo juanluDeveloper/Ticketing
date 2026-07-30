@@ -24,6 +24,13 @@ public record ValidationRequest(
 
     public record LineUpdate(
             Long lineItemId,
+            /**
+             * Borra la línea. Hace falta porque el extractor genera líneas
+             * espurias de verdad: la sub-línea de peso del mango salió como
+             * ítem propio, duplicando su importe y rompiendo C1. Sin poder
+             * quitarla, ese ticket no se puede validar nunca.
+             */
+            Boolean delete,
             String rawDescription,
             BigDecimal quantity,
             BigDecimal printedUnitPrice,

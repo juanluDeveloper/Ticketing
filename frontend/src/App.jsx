@@ -4,6 +4,7 @@ import UploadView from './UploadView.jsx'
 import TicketList from './TicketList.jsx'
 import ValidationView from './ValidationView.jsx'
 import HistoryView from './HistoryView.jsx'
+import ComparatorView from './ComparatorView.jsx'
 
 export default function App() {
   const [authed, setAuthed] = useState(hasCredentials())
@@ -36,6 +37,15 @@ export default function App() {
           >
             Histórico
           </button>
+          <button
+            className={tab === 'comparador' ? 'tab active' : 'tab'}
+            onClick={() => {
+              setTab('comparador')
+              setOpenTicketId(null)
+            }}
+          >
+            Comparador
+          </button>
         </nav>
         <button
           className="link"
@@ -49,6 +59,7 @@ export default function App() {
       </header>
 
       {tab === 'historico' && <HistoryView />}
+      {tab === 'comparador' && <ComparatorView />}
 
       {tab === 'tickets' &&
         (openTicketId ? (

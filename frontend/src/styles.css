@@ -166,6 +166,34 @@ header nav { display: flex; gap: .3rem; flex: 1; }
 .chart { width: 100%; max-width: 640px; height: auto; margin: 1rem 0; }
 .chart .axis { font-size: 10px; fill: var(--gris); }
 
+/* --- comparador --- */
+h3 { font-size: .95rem; margin: 1.2rem 0 .4rem; }
+
+/* Las tres cifras juntas a propósito: el más barato, la elección y lo que
+   cuesta la diferencia. Enseñar solo la recomendación esconde la prima. */
+.verdict {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: .8rem;
+  background: var(--fondo-suave);
+  border-left: 4px solid var(--verde);
+  padding: .8rem 1rem;
+  border-radius: 4px;
+  margin: .8rem 0;
+}
+.verdict dt { font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; color: var(--gris); }
+.verdict dd { margin: .15rem 0 0; font-size: 1.05rem; }
+.verdict .explanation { grid-column: 1 / -1; margin: .2rem 0 0; font-size: .9rem; }
+
+tr.preferred > td { background: #f2f7ff; }
+
+button.link.danger { color: var(--rojo); }
+tr.edited td .link.danger { font-weight: 700; }
+
+@media (max-width: 700px) {
+  .verdict { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 900px) {
   .split { grid-template-columns: 1fr; }
   .photo { position: static; }

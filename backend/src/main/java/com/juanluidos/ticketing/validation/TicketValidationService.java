@@ -107,6 +107,13 @@ public class TicketValidationService {
                     .orElseThrow(() -> new IllegalArgumentException(
                             "La línea " + update.lineItemId() + " no es de este ticket"));
 
+            if (Boolean.TRUE.equals(update.delete())) {
+                observations.deleteByLineItemId(line.getId());
+                observations.flush();
+                lineItems.delete(line);
+                continue;
+            }
+
             if (update.rawDescription() != null) {
                 line.setRawDescription(update.rawDescription());
             }
