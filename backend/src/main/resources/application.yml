@@ -54,6 +54,17 @@ ticketing:
     amount-tolerance: 0.01
     weight-amount-tolerance: 0.02
 
+management:
+  endpoints:
+    web:
+      exposure:
+        # Solo health. El resto de endpoints de actuator no tienen por qué
+        # existir en una app que va a estar publicada en internet.
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
 logging:
   level:
     com.juanluidos.ticketing: DEBUG

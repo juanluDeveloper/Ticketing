@@ -1,0 +1,58 @@
+# Overlay OPCIONAL: Ollama dentro del stack, con acceso a la GTX 1070.
+#
+# Es la opción recomendada, pero hay dos y la decisión no es mía:
+#
+#   A) Ollama en contenedor (este fichero). No expone NADA en el host, el
+#      backend llega por http://ollama:11434 y todo queda dentro de
+#      ticketing-net. Requiere nvidia-container-toolkit instalado.
+#
+#   B) Ollama en el host como servicio systemd. Más simple si ya está
+#      instalado, pero por defecto escucha en 127.0.0.1:11434 y desde un
+#      contenedor eso NO se alcanza. Habría que ponerlo a escuchar en la
+#      interfaz del bridge o en 0.0.0.0, y en el segundo caso queda visible
+#      para toda la LAN salvo que se añada regla de firewall.
+#
+# Con la opción A, arrancar así:
+#   docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml up -d
+#
+# y poner en el .env:  OLLAMA_BASE_URL=http://ollama:11434
+#
+# Comprobar primero que el toolkit está:
+#   dpkg -l | grep nvidia-container-toolkit
+#   docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ticketing-ollama
+    # Sin ports: solo lo alcanza el backend por la red interna.
+    volumes:
+      # El modelo pesa unos 6 GB. En volumen con nombre para que sobreviva a
+      # recrear el contenedor y no haya que descargarlo otra vez.
+      - ticketing-ollama-models:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    healthcheck:
+      test: [ "CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    networks: [ ticketing-net ]
+
+  backend:
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+    depends_on:
+      ollama:
+        condition: service_started
+
+volumes:
+  ticketing-ollama-models:
+    name: ticketing-ollama-models

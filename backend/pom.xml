@@ -39,6 +39,14 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
+        <!-- /actuator/health, que es lo que sondean el healthcheck de Compose y
+             el reverse proxy. SecurityConfig ya lo dejaba abierto, pero el
+             endpoint no existía: la comprobación habría fallado siempre. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
