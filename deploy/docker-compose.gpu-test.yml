@@ -1,0 +1,39 @@
+# Solo Ollama, para probar la GPU ANTES de desplegar nada de la aplicación.
+#
+# Mismo proyecto Compose, misma red y mismo volumen que el despliegue definitivo,
+# a propósito: así la descarga del modelo (unos 6 GB) se hace una sola vez y el
+# stack de producción la reutiliza tal cual.
+#
+#   cd /srv/ticketing/deploy
+#   docker compose -f docker-compose.gpu-test.yml up -d
+#
+# Para retirarlo sin perder el modelo descargado (NUNCA con -v):
+#   docker compose -f docker-compose.gpu-test.yml down
+
+name: ticketing
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ticketing-ollama
+    # Sin ports: no se expone en el host ni en la LAN. Las pruebas se hacen
+    # desde un contenedor efímero en la misma red.
+    volumes:
+      - ticketing-ollama-models:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    restart: unless-stopped
+    networks: [ ticketing-net ]
+
+volumes:
+  ticketing-ollama-models:
+    name: ticketing-ollama-models
+
+networks:
+  ticketing-net:
+    name: ticketing-net

@@ -92,28 +92,24 @@ porque son contenedores y volúmenes distintos; no se reutiliza nada.
 
 ---
 
-## 3. La decisión abierta: dónde corre Ollama
+## 3. Ollama: en contenedor
 
-Es lo único de la arquitectura que no puedo cerrar sin ver el servidor.
+**Decidido.** Ollama va en `docker-compose.ollama.yml`, con el NVIDIA Container
+Toolkit, sin publicar puerto y con el backend llegando por `http://ollama:11434`.
+Nada queda accesible desde la LAN.
 
-**Opción A — Ollama en contenedor** (`docker-compose.ollama.yml`, recomendada).
-No expone nada en el host, el backend llega por `http://ollama:11434` y todo se
-queda dentro de `ticketing-net`. Encaja con tus reglas de aislamiento sin
-excepciones. Requiere `nvidia-container-toolkit`.
+La GPU está virgen: no hay driver, ni toolkit, ni Ollama. Toda esa instalación es
+la fase previa y está en [instalacion_gpu_servidor.md](instalacion_gpu_servidor.md),
+que se ejecuta y se verifica **antes** de desplegar la aplicación.
 
-**Opción B — Ollama en el host** como servicio systemd. Más simple si ya está
-instalado. Tiene una trampa que conviene saber antes: **por defecto escucha en
-`127.0.0.1:11434`, y eso un contenedor no lo alcanza**, ni siquiera con
-`host.docker.internal`. Habría que ponerlo a escuchar en `0.0.0.0`, y entonces
-queda visible para toda la LAN salvo que añadas una regla de firewall — que es
-justo el tipo de cambio que pediste no hacer a la ligera.
+Arranque definitivo, una vez la GPU esté probada:
 
-El `docker-compose.prod.yml` está escrito ahora mismo para la **opción B**
-(`host.docker.internal` + `extra_hosts`). Para pasar a la A basta con añadir el
-overlay y cambiar una variable; está documentado en la cabecera del overlay.
+```bash
+docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml up -d --build
+```
 
-Lo que decide: si `nvidia-container-toolkit` está instalado y si Ollama ya corre
-en el host para otra cosa.
+El overlay pisa `OLLAMA_BASE_URL` con `http://ollama:11434`, así que la variable
+del `.env` queda ignorada en esta configuración.
 
 ---
 
@@ -134,50 +130,67 @@ no.
 
 Además, `SEED_USER_PASSWORD` tiene por defecto `cambiame`.
 
-Tres salidas, y hay que elegir **antes** de crear el hostname público:
+**Decidido: Cloudflare Access delante del túnel.** El código no se toca; Access
+se configura en el panel y exige identidad antes de que la petición llegue a la
+app, con el Basic quedando como segunda barrera.
 
-1. **Cloudflare Access delante** (lo más rápido y lo que mejor encaja con lo que
-   ya tienes). El túnel exige identidad antes de que la petición llegue a la
-   app, así que el Basic queda como segunda barrera. Cero cambios de código.
-2. **Cambiar a sesión con CSRF activado.** Correcto de libro, pero toca el
-   backend y el frontend.
-3. Dejarlo como está. **No lo recomiendo** y no lo doy por bueno.
+Con esa decisión, el CSRF deja de ser explotable en la práctica: una página de
+terceros no puede atravesar Access. Conviene tenerlo escrito de todas formas,
+porque **la protección vive fuera de la aplicación**: el día que se acceda por
+otra vía que no pase por Access —una prueba en la LAN, un puerto abierto por
+error, un cambio en el túnel— la app vuelve a estar sin defensa. Si en algún
+momento quieres que el propio backend se defienda solo, hay que pasar a sesión
+con CSRF activado, y eso toca backend y frontend.
 
-No he tocado `SecurityConfig`: cambiar el modelo de autenticación por mi cuenta,
-justo antes de un despliegue, es de las cosas que conviene decidir y no
-descubrir. Dime cuál quieres y lo monto.
+### La contraseña del usuario
+
+Se hashea con BCrypt en el primer arranque, cuando el hash está en el centinela
+`NEEDS_INIT`. En claro no se guarda nunca. **Antes del primer `up`:**
+
+```bash
+# Generar una de verdad y guardarla en tu gestor de contraseñas
+openssl rand -base64 24
+
+# Ponerla en el .env, que ya está en 600
+$EDITOR /srv/ticketing/deploy/.env      # SEED_USER_PASSWORD=<la generada>
+```
+
+Si el stack ya arrancó con otra, el hash ya está puesto y cambiar la variable no
+hace nada por sí solo. Hay que devolver el centinela y reiniciar **solo este**
+contenedor:
+
+```bash
+docker exec ticketing-postgres psql -U ticketing -d ticketing \
+    -c "UPDATE app_user SET password_hash='NEEDS_INIT' WHERE username='juanluidos'"
+
+$EDITOR /srv/ticketing/deploy/.env      # la nueva contraseña
+cd /srv/ticketing/deploy
+docker compose -f docker-compose.prod.yml up -d --force-recreate backend
+
+# El log lo confirma
+docker logs ticketing-backend | grep "Contraseña inicializada"
+```
+
+Nunca `docker compose restart` a secas ni tocar otros servicios: solo `backend`.
 
 ---
 
 ## 5. Cloudflare Tunnel
 
-**Antes de tocar nada, comprobar cómo se gestiona.** Si es por panel, se añade
-allí el Public Hostname nuevo apuntando a `http://localhost:8081` y no se edita
-ningún fichero.
+**Confirmado: el túnel se gestiona por token desde el panel.** `cloudflared`
+arranca con `--token` y no existe `/etc/cloudflared/config.yml`.
 
-Si es por `/etc/cloudflared/config.yml`, la regla nueva va **antes** del
-`http_status:404`, sin tocar la existente:
+Consecuencia directa: **no se toca ningún fichero de cloudflared en el
+servidor**. El Public Hostname nuevo lo añades tú en el dashboard apuntando a
+`http://localhost:8081`, y Access se configura sobre ese hostname.
 
-```yaml
-ingress:
-  - hostname: collection.videogameslibrary.com
-    service: http://localhost:8080          # NO SE TOCA
-
-  - hostname: tickets.videogameslibrary.com # nueva
-    service: http://localhost:8081
-
-  - service: http_status:404
-```
-
-Con copia previa y validación antes de recargar:
+Del lado del servidor lo único que hace falta es que el servicio escuche donde
+toca, y eso se comprueba así:
 
 ```bash
-sudo cp /etc/cloudflared/config.yml /etc/cloudflared/config.yml.bak-$(date +%F)
-sudo cloudflared tunnel ingress validate
-sudo systemctl reload cloudflared    # reload, no restart: no corta el túnel del otro proyecto
+sudo ss -ltnp | grep 8081        # debe aparecer 127.0.0.1:8081, nunca 0.0.0.0
+curl -sI http://127.0.0.1:8081/ | head -1
 ```
-
-Si `validate` falla, se restaura el `.bak` y no se recarga.
 
 ---
 
@@ -272,12 +285,27 @@ sirve: conviene probar la restauración en local una vez.
 
 ---
 
-## 9. Lo que NO está resuelto
+## 9. Estado
 
-- Sin diagnóstico del servidor: los puertos, el estado de cloudflared y la
-  presencia de Ollama están **asumidos**, no comprobados.
-- La seguridad, §4. Es bloqueante para exponerlo al público.
-- Dónde corre Ollama, §3.
-- El comportamiento en la 1070 sigue sin medir.
-- El `mcp-server/` que revisamos no está en este repositorio ni desplegado en
-  ningún sitio, y no forma parte de esta arquitectura.
+Confirmado en el servidor por SSH:
+
+| | |
+|---|---|
+| Distro | Ubuntu 22.04 — **falta confirmarlo con `lsb_release`**, se dedujo de apt |
+| GPU | virgen: sin driver, sin toolkit, sin Ollama |
+| Túnel | por token desde el panel; **no hay fichero local que tocar** |
+| Puerto 8081 | libre (ocupados: 8080, 22, 53, 20241) |
+| RAM | 21 GB libres de 24 |
+| Disco | 69 GB libres en raíz; se despliega ahí |
+
+Decidido: Cloudflare Access delante, Ollama en contenedor.
+
+Pendiente:
+
+- **La fase GPU**, que va primero: [instalacion_gpu_servidor.md](instalacion_gpu_servidor.md).
+- **El comportamiento en la 1070 sigue sin medir.** Es lo que decide si el modelo
+  se queda o hay que bajar a `qwen3-vl:4b`.
+- Los ~1,7 TB sin asignar y los dos SSD sin montar **no se tocan**: es una
+  operación de particiones aparte, fuera de este despliegue.
+- El `mcp-server/` no está en este repositorio ni en el servidor, y no forma
+  parte de esta arquitectura.
