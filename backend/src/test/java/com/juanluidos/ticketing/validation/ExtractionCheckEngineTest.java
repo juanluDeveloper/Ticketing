@@ -28,7 +28,7 @@ class ExtractionCheckEngineTest {
 
     private final ExtractionCheckEngine engine = new ExtractionCheckEngine(
             new TicketingProperties("x", null, null,
-                    new TicketingProperties.Validation(new BigDecimal("0.01"), new BigDecimal("0.02"))));
+                    new TicketingProperties.Validation(new BigDecimal("0.01"), new BigDecimal("0.02")), null));
 
     // ------------------------------------------------------------------
     // Cash Fresh

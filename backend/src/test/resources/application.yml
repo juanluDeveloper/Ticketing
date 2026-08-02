@@ -21,6 +21,8 @@ spring:
     encoding: UTF-8
 
 ticketing:
+  cors:
+    allowed-origins: http://localhost:5173
   seed-user-password: test
   storage:
     image-dir: ./target/test-ticket-images

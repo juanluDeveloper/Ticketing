@@ -9,8 +9,22 @@ public record TicketingProperties(
         String seedUserPassword,
         Storage storage,
         Ollama ollama,
-        Validation validation
+        Validation validation,
+        Cors cors
 ) {
+
+    /**
+     * Orígenes permitidos.
+     *
+     * <p>En producción el frontend y la API se sirven desde el mismo host a
+     * través de nginx, así que en teoría no haría falta CORS. En la práctica sí:
+     * los navegadores mandan cabecera {@code Origin} en los POST incluso cuando
+     * son del mismo origen, y detrás de un proxy Spring no puede reconocerlos
+     * como tales. Si el origen público no está en esta lista, subir una foto
+     * falla con "Invalid CORS request" mientras el resto de la app funciona.
+     */
+    public record Cors(java.util.List<String> allowedOrigins) {
+    }
 
     public record Storage(String imageDir) {
     }

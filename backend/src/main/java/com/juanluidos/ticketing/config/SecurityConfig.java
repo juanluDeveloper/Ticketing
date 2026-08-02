@@ -42,18 +42,18 @@ public class SecurityConfig {
                         .anyRequest().authenticated())
                 .httpBasic(basic -> {
                 })
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .cors(cors -> {
+                })
                 // Uso personal en LAN, sin formularios de terceros. Se revisará al
                 // exponer la app fuera de casa.
                 .csrf(csrf -> csrf.disable())
                 .build();
     }
 
-    /** Solo para el servidor de desarrollo de Vite; en producción front y back van juntos. */
     @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
+    public CorsConfigurationSource corsConfigurationSource(TicketingProperties properties) {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:5173", "http://127.0.0.1:5173"));
+        config.setAllowedOrigins(properties.cors().allowedOrigins());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

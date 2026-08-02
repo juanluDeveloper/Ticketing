@@ -22,7 +22,7 @@ class SoldByAndRowTextChecksTest {
 
     private final ExtractionCheckEngine engine = new ExtractionCheckEngine(
             new TicketingProperties("x", null, null,
-                    new TicketingProperties.Validation(new BigDecimal("0.01"), new BigDecimal("0.02"))));
+                    new TicketingProperties.Validation(new BigDecimal("0.01"), new BigDecimal("0.02")), null));
 
     /**
      * El fallo real observado: el modelo clasificó las 26 líneas de un Mercadona

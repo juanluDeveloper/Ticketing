@@ -55,6 +55,11 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       SEED_USER_PASSWORD: ${SEED_USER_PASSWORD}
       TICKET_IMAGE_DIR: /data/ticket-images
+      # El origen público. Hace falta aunque front y API compartan host: el
+      # navegador manda cabecera Origin en los POST y, detrás del proxy, Spring
+      # no los reconoce como del mismo origen. Sin esto subir una foto falla con
+      # "Invalid CORS request" y el resto de la app parece funcionar bien.
+      CORS_ALLOWED_ORIGINS: ${PUBLIC_ORIGIN}
       # Ollama corre en el HOST, no en un contenedor: necesita la GTX 1070 y no
       # tiene sentido meter el paso por nvidia-container-toolkit para un único
       # consumidor. host-gateway es la IP del host desde dentro de la red bridge.

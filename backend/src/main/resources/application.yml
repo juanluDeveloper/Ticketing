@@ -1,3 +1,8 @@
+server:
+  # Detrás de nginx: sin esto Spring cree que habla http en el puerto 8080 y
+  # cualquier URL que genere sale mal.
+  forward-headers-strategy: framework
+
 spring:
   application:
     name: ticketing
@@ -53,6 +58,14 @@ ticketing:
     # 1,394 kg x 3,05 EUR/kg = 4,2517 -> 4,25.
     amount-tolerance: 0.01
     weight-amount-tolerance: 0.02
+
+  cors:
+    # Por defecto solo el servidor de desarrollo de Vite. En produccion hay que
+    # anadir el origen publico: aunque front y API se sirvan del mismo host, el
+    # navegador manda cabecera Origin en los POST y detras del proxy Spring no
+    # los reconoce como del mismo origen. Sin esto, subir una foto falla con
+    # "Invalid CORS request" mientras el resto de la app parece ir bien.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
 
 management:
   endpoints:
