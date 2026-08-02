@@ -33,10 +33,15 @@ export default function UploadView({ onUploaded }) {
         La extracción va por detrás y puede tardar minutos: en cuanto se sube, el ticket queda en
         cola y se puede seguir a lo otro.
       </p>
-      {/* capture abre la cámara directamente en el móvil */}
+      {/*
+        SIN el atributo capture, a propósito. Con capture="environment" el móvil
+        abre la cámara de golpe y NO deja elegir de la galería, que es justo lo
+        que hace falta para subir una foto hecha antes. Con accept="image/*" a
+        secas, el sistema ofrece las dos: cámara y galería.
+      */}
       <label className="filebutton">
         {busy ? 'Subiendo…' : 'Hacer foto o elegir imagen'}
-        <input type="file" accept="image/*" capture="environment" onChange={pick} disabled={busy} />
+        <input type="file" accept="image/*" onChange={pick} disabled={busy} />
       </label>
       {notice && <p className="warn">{notice}</p>}
       {error && <p className="error">{error}</p>}
