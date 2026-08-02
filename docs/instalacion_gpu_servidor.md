@@ -51,26 +51,62 @@ saberlo antes.
 
 ## Paso 1 — Driver NVIDIA
 
+### Cómo se eligió el paquete (y por qué NO es el recomendado)
+
+Tres cosas que solo se vieron mirando, y que invalidan lo que parecía obvio:
+
+**`ubuntu-drivers devices` recomienda la 390 para esta tarjeta.** Es la rama
+legacy de 2018: soporta la GTX 1070, pero su CUDA es de la era 9.x y **Ollama no
+funcionaría**. Ese "recommended" puntúa por la edad de la GPU, no por el uso que
+se le va a dar. `ubuntu-drivers autoinstall` habría tumbado el proyecto entero.
+
+**`nvidia-driver-535` es un paquete transicional**: `Depende: nvidia-driver-580`.
+En jammy-updates ya no existe la 535 de verdad, así que la idea de "instalar la
+LTS conservadora" no era posible en esta máquina.
+
+**La 580 es la última rama que soporta Pascal.** NVIDIA mantiene Maxwell, Pascal
+y Volta hasta el 580 y las deja fuera después. Aparece listada explícitamente
+para el device `1B81` de esta GPU, así que es evidencia y no suposición. No
+habrá ramas nuevas para esta tarjeta, lo cual no bloquea nada hoy pero conviene
+tenerlo escrito.
+
+También hay que evitar cualquier paquete `-open`: el módulo abierto solo soporta
+Turing en adelante y en Pascal no arranca.
+
+### El paquete elegido
+
+En un servidor sin pantalla no hace falta driver de X. Comparación medida:
+
+| Opción | Paquetes | Pila X11 |
+|---|---|---|
+| `nvidia-driver-580` | 45 | sí |
+| `nvidia-driver-580-server` | 37 | **sí** (también) |
+| `nvidia-headless-580-server` + `nvidia-utils-580-server` | **17** | **no** |
+
+La variante `-server` sigue arrastrando `xserver-xorg-core`; lo que de verdad
+evita X son los metapaquetes `nvidia-headless-*`. El `utils` aporta `nvidia-smi`
+y las librerías de compute (`libnvidia-ml`, `libcuda`), que es exactamente lo que
+el Container Toolkit inyecta en los contenedores.
+
 ```bash
 sudo apt update
-sudo apt install -y ubuntu-drivers-common
-
-# Qué recomienda Ubuntu para esta tarjeta concreta
-ubuntu-drivers devices
+sudo apt install -y nvidia-headless-580-server nvidia-utils-580-server
 ```
 
-Pásame la salida antes de instalar. La 1070 es Pascal y funciona con las ramas
-535, 550 y 570; **la 535 es LTS y la apuesta segura**. La instalación explícita
-es preferible a `ubuntu-drivers autoinstall`, que a veces elige la rama `-open`,
-incompatible con Pascal.
+### Verificar ANTES de reiniciar
+
+No conviene reiniciar a ciegas: si el módulo no se ha construido, la máquina
+arranca sin GPU y encima has tirado la web para nada.
 
 ```bash
-# Con la versión ya acordada (ejemplo con 535)
-sudo apt install -y nvidia-driver-535
+modinfo nvidia | head -5                 # debe decir version: 580.173.02
+dkms status                              # nvidia/580.173.02, <kernel>: installed
+grep -r nouveau /etc/modprobe.d/ | head  # debe aparecer blacklist nouveau
+```
 
-# El paquete pone nouveau en la lista negra solo; confirmarlo
-cat /etc/modprobe.d/nvidia-graphics-drivers.conf 2>/dev/null | head
+Si `modinfo` falla con "module not found", **no reiniciar**.
 
+```bash
 sudo reboot
 ```
 
