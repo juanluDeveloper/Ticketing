@@ -255,17 +255,38 @@ docker compose -f docker-compose.prod.yml down   # SIN -v: el volumen se queda
 
 Con lo que ya corre en la máquina:
 
-| | Estimación | Notas |
+Medido en el servidor, no estimado:
+
+| | Medido | Notas |
 |---|---|---|
 | RAM | ~1,5 GB el stack | JVM al 70 % del límite, Postgres, dos nginx |
-| RAM Ollama | 1-2 GB de host | los pesos van a VRAM |
-| VRAM | **6,09 GiB de 8** | medido en el PC con `num_ctx=8192` |
-| Disco | ~7 GB | modelo 6,1 GB + imágenes, que crecen despacio |
+| RAM libre | 21 GB de 24 | sobra de largo |
+| **VRAM con el modelo cargado** | **7851 MiB de 8192** | quedan 341 MiB, un 4 % |
+| Contexto, peor caso | 4036 de 8192 | Mercadona, 27 líneas |
+| Tiempo, ticket alto | 97-102 s | 4× la RTX 5070 Ti, esperado en Pascal |
+| Tiempo, carga del modelo | ~21 s | se paga una vez |
+| Disco | 67 GB libres en raíz | modelo 6,1 GB + imágenes |
 
-De 24 GB de RAM sobra de largo. **El número apretado es la VRAM**: 6,09 de 8 GiB
-deja poco margen, y si hay que bajar el troceado de imagen o la cuantización, lo
-que se degrada es justo el OCR del ticket alto y denso. Por eso la prueba en la
-1070 real sigue siendo el paso que falta antes de fijar el modelo.
+**La VRAM va al 96 %.** Los 6,09 GiB medidos en el PC se quedaban cortos: aquí
+`ollama ps` reporta 6,4 GB de modelo y `nvidia-smi` 7851 MiB en total, y esa
+diferencia de ~1,2 GB son los buffers de CUDA y del codificador de visión.
+
+Tres consecuencias que conviene tener escritas:
+
+1. **No hay sitio para subir `num_ctx`.** El 8192 está confirmado funcionando y
+   sobra contexto (51 % libre en el peor caso), así que no hace falta — pero si
+   algún día hiciera falta, no cabe: habría que pasar a `qwen3-vl:4b`.
+2. **Nada más puede usar esa GPU.** Con 341 MiB libres, cualquier otro proceso
+   que pida VRAM provoca un fallo de asignación.
+3. **Una extracción cada vez.** El ejecutor de un solo hilo del backend deja de
+   ser una simplificación y pasa a ser un requisito: dos extracciones en
+   paralelo no caben en esta tarjeta.
+
+Sobre el `keep_alive` por defecto de Ollama (descarga el modelo a los 5 minutos
+de inactividad): **se deja como está**. Con unos pocos tickets a la semana, cada
+extracción paga ~21 s de carga, que es irrelevante frente a los 100 s del propio
+trabajo, y a cambio la GPU queda libre cuando no se usa — que con un 4 % de
+margen es lo prudente.
 
 ---
 
