@@ -67,6 +67,48 @@ export default function ValidationView({ ticketId, onClose }) {
     return draft && field in draft ? draft[field] : line[field]
   }
 
+  const unassigned = (detail?.lines ?? []).filter((l) => !l.product)
+
+  /**
+   * Crea de golpe un producto por cada línea sin asignar, con el nombre del
+   * ticket y el tamaño que el backend haya deducido de la descripción.
+   *
+   * <p>El primer ticket de un súper trae decenas de líneas y ninguna tiene a
+   * qué engancharse todavía: hacerlo una a una con el selector es inviable. El
+   * trabajo es de una vez, no recurrente — cada confirmación enseña un alias al
+   * matcher, así que el siguiente ticket del mismo súper ya llega emparejado.
+   */
+  async function createMissingProducts() {
+    setBusy(true)
+    setError(null)
+    try {
+      const updated = await api.validate(ticketId, {
+        purchasedAt: detail.summary.purchasedAt,
+        receiptNumber: detail.summary.receiptNumber,
+        total: detail.summary.total,
+        articleCount: detail.summary.articleCount,
+        confirm: false,
+        lines: unassigned.map((l) => ({
+          lineItemId: l.id,
+          product: {
+            newProduct: {
+              canonicalName: l.rawDescription,
+              packageSize: l.sizeSuggestion?.value ?? null,
+              packageUnit: l.sizeSuggestion?.unit ?? null,
+              soldBy: l.soldBy,
+            },
+          },
+        })),
+      })
+      setDetail(updated)
+      setDrafts({})
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function save(confirm) {
     setBusy(true)
     setError(null)
@@ -206,6 +248,11 @@ export default function ValidationView({ ticketId, onClose }) {
       {error && <p className="error">{error}</p>}
 
       <div className="actions">
+        {unassigned.length > 0 && (
+          <button onClick={createMissingProducts} disabled={busy}>
+            Crear producto para las {unassigned.length} líneas sin asignar
+          </button>
+        )}
         <button onClick={() => save(false)} disabled={busy}>
           Guardar correcciones
         </button>
