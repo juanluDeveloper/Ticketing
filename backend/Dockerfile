@@ -16,8 +16,15 @@ FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
 # curl para el healthcheck; la imagen JRE alpine no lo trae.
+#
+# El uid/gid van FIJOS a 1000, no con el -S de usuario de sistema. Con -S alpine
+# asigna un uid del rango bajo (100), y el directorio de imágenes que se monta
+# desde el host pertenece al usuario normal (1000) con permisos 755: el
+# contenedor no podía escribir y toda subida de foto moría con un 500.
+# Dejarlo al azar del sistema es lo que rompió esto una vez.
 RUN apk add --no-cache curl \
-    && addgroup -S ticketing && adduser -S ticketing -G ticketing
+    && addgroup -g 1000 ticketing \
+    && adduser -u 1000 -G ticketing -S ticketing
 
 COPY --from=build /build/target/*.jar app.jar
 
