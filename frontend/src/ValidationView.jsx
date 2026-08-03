@@ -111,6 +111,30 @@ export default function ValidationView({ ticketId, onClose }) {
         <button className="link" onClick={() => setShowImage((v) => !v)}>
           {showImage ? 'Ocultar foto' : 'Ver foto'}
         </button>
+        {/* Borrar libera el número de recibo y permite volver a subir la compra
+            con una foto mejor, que es justo lo que hace falta cuando la
+            extracción sale mal. */}
+        <button
+          className="link danger"
+          disabled={extracting}
+          onClick={async () => {
+            if (!window.confirm('¿Borrar este ticket y todo lo extraído de él?')) return
+            try {
+              await api.deleteTicket(ticketId)
+              onClose()
+            } catch (e) {
+              if (e.message.includes('histórico') &&
+                  window.confirm(`${e.message}\n\n¿Borrarlo de todas formas?`)) {
+                await api.deleteTicket(ticketId, true)
+                onClose()
+                return
+              }
+              setError(e.message)
+            }
+          }}
+        >
+          Borrar ticket
+        </button>
       </div>
 
       {extracting && (

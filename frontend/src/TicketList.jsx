@@ -12,6 +12,38 @@ const STATUS_LABEL = {
 export default function TicketList({ reloadToken, onOpen }) {
   const [tickets, setTickets] = useState([])
   const [error, setError] = useState(null)
+  const [refresh, setRefresh] = useState(0)
+
+  /**
+   * Borrar es lo que libera el número de recibo. Sin esto, una compra
+   * fotografiada mal queda inservible: la deduplicación impide volver a subirla
+   * y no había forma de quitar la mala.
+   */
+  async function remove(ticket) {
+    const label = `${ticket.storeName ?? 'ticket'} · ${ticket.total ?? '—'} €`
+    if (!window.confirm(`¿Borrar el ticket de ${label}?`)) return
+
+    setError(null)
+    try {
+      await api.deleteTicket(ticket.id)
+      setRefresh((n) => n + 1)
+    } catch (e) {
+      // El backend rechaza los validados sin confirmación explícita, porque el
+      // borrado se lleva por delante los precios que aportaron al histórico.
+      if (e.message.includes('histórico')) {
+        if (window.confirm(`${e.message}\n\n¿Borrarlo de todas formas?`)) {
+          try {
+            await api.deleteTicket(ticket.id, true)
+            setRefresh((n) => n + 1)
+          } catch (forced) {
+            setError(forced.message)
+          }
+        }
+        return
+      }
+      setError(e.message)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -33,7 +65,7 @@ export default function TicketList({ reloadToken, onOpen }) {
       cancelled = true
       clearInterval(timer)
     }
-  }, [reloadToken])
+  }, [reloadToken, refresh])
 
   if (error) return <p className="error">{error}</p>
 
@@ -44,17 +76,29 @@ export default function TicketList({ reloadToken, onOpen }) {
       <ul className="tickets">
         {tickets.map((t) => (
           <li key={t.id}>
-            <button className="ticketrow" onClick={() => onOpen(t.id)}>
-              <span className={`badge ${t.status.toLowerCase()}`}>
-                {STATUS_LABEL[t.status] ?? t.status}
-              </span>
-              <span className="store">{t.storeName ?? 'súper sin identificar'}</span>
-              <span className="date">
-                {t.purchasedAt ? t.purchasedAt.replace('T', ' ').slice(0, 16) : '—'}
-              </span>
-              <span className="total">{t.total != null ? `${fmt(t.total)} €` : '—'}</span>
-              <span className="muted">{t.lineCount} líneas</span>
-            </button>
+            <div className="ticketline">
+              <button className="ticketrow" onClick={() => onOpen(t.id)}>
+                <span className={`badge ${t.status.toLowerCase()}`}>
+                  {STATUS_LABEL[t.status] ?? t.status}
+                </span>
+                <span className="store">{t.storeName ?? 'súper sin identificar'}</span>
+                <span className="date">
+                  {t.purchasedAt ? t.purchasedAt.replace('T', ' ').slice(0, 16) : '—'}
+                </span>
+                <span className="total">{t.total != null ? `${fmt(t.total)} €` : '—'}</span>
+                <span className="muted">{t.lineCount} líneas</span>
+              </button>
+              <button
+                className="link danger"
+                title="Borrar este ticket"
+                // Deshabilitado mientras la GPU lo tiene entre manos: borrarlo
+                // ahí sería una carrera con el worker.
+                disabled={t.status === 'EXTRACTING'}
+                onClick={() => remove(t)}
+              >
+                ✕
+              </button>
+            </div>
             {t.extractionError && <p className="error small">{t.extractionError}</p>}
           </li>
         ))}

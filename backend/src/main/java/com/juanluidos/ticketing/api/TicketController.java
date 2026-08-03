@@ -77,6 +77,20 @@ public class TicketController {
                 .body(bytes);
     }
 
+    /**
+     * Borra el ticket y todo lo derivado de él. Libera su número de recibo, que
+     * es lo que impide volver a subir esa compra con una foto mejor.
+     *
+     * <p>{@code force} solo hace falta si el ticket está validado: entonces el
+     * borrado se lleva también los precios que aportó al histórico.
+     */
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Long id,
+                       @RequestParam(defaultValue = "false") boolean force) {
+        find(id);
+        ingest.delete(id, force);
+    }
+
     /** Reextrae desde la imagen guardada, con el prompt y el modelo actuales. */
     @PostMapping("/{id}/reextract")
     public TicketViews.TicketSummary reextract(@PathVariable Long id,

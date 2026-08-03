@@ -57,6 +57,10 @@ export const api = {
     return request(`/tickets${query}`, { method: 'POST', body: form })
   },
   reextract: (id) => request(`/tickets/${id}/reextract`, { method: 'POST' }),
+  // Borrar libera el número de recibo, que es lo que impide volver a subir la
+  // misma compra con una foto mejor.
+  deleteTicket: (id, force = false) =>
+    request(`/tickets/${id}${force ? '?force=true' : ''}`, { method: 'DELETE' }),
   validate: (id, payload) => request(`/tickets/${id}/validate`, { method: 'POST', body: payload }),
   // La imagen va autenticada, así que no se puede poner la URL en un <img> a
   // secas: se descarga y se envuelve en un object URL.

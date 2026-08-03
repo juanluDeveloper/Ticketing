@@ -71,6 +71,20 @@ public class TicketImageStorage {
         }
     }
 
+    /**
+     * Borra la imagen de un ticket eliminado. No falla si ya no está: el
+     * objetivo es que no queden ficheros sueltos, no auditar el borrado.
+     */
+    public void delete(String relativePath) {
+        try {
+            Files.deleteIfExists(resolve(relativePath));
+        } catch (IOException e) {
+            // Que no se pueda borrar el fichero no es motivo para dejar el
+            // ticket en la base: se registra y se sigue.
+            throw new UncheckedIOException("No se pudo borrar la imagen " + relativePath, e);
+        }
+    }
+
     void replace(String relativePath, byte[] image) {
         try {
             Files.copy(new java.io.ByteArrayInputStream(image), resolve(relativePath),
