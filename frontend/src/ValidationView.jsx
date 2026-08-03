@@ -329,6 +329,44 @@ function LineRow({ line, storeCode, edited, valueOf, patch }) {
         </td>
       </tr>
 
+      {/*
+        Las líneas a peso necesitan su propio hueco: el precio unitario es €/kg,
+        así que sin el peso ni cuadra la aritmética ni se puede calcular el
+        precio comparable. El modelo marca "a peso" y a veces se deja el peso,
+        y sin esta fila no había forma de arreglarlo desde la pantalla.
+      */}
+      {valueOf(line, 'soldBy') === 'WEIGHT' && (
+        <tr className={`weightrow ${line.weightValue == null ? 'missing' : ''}`}>
+          <td />
+          <td colSpan={7}>
+            <label>
+              Peso{' '}
+              <input
+                className="num"
+                placeholder="1,082"
+                value={valueOf(line, 'weightValue') ?? ''}
+                onChange={(e) => patch(line.id, 'weightValue', e.target.value)}
+              />
+            </label>{' '}
+            <label>
+              Unidad{' '}
+              <input
+                className="letter"
+                placeholder="kg"
+                value={valueOf(line, 'weightUnit') ?? 'kg'}
+                onChange={(e) => patch(line.id, 'weightUnit', e.target.value)}
+              />
+            </label>
+            {line.weightValue == null && (
+              <span className="muted small">
+                {' '}
+                · sin peso no hay precio por kilo con el que comparar
+              </span>
+            )}
+          </td>
+        </tr>
+      )}
+
       {/* La fila transcrita literal, para cotejarla con la foto sin bizquear. */}
       {line.rawRowText && (
         <tr className="rawrow">

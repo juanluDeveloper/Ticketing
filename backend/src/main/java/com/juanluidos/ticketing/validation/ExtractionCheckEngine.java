@@ -125,6 +125,20 @@ public class ExtractionCheckEngine {
             if (line.unitPrice() == null || line.quantity() == null || line.lineTotal() == null) {
                 continue;
             }
+
+            // Línea a peso sin peso leído: el precio unitario es €/kg, así que
+            // multiplicarlo por la cantidad no significa nada. Antes se hacía
+            // igual y salía un error inventado en una línea correcta — "1 x 3,05
+            // no da 3,30" cuando en el papel pone 1,082 kg y la cuenta cuadra.
+            if ("weight".equals(line.soldBy()) && line.weight() == null) {
+                findings.add(new CheckReport.LineFinding(i + 1, CheckCode.C2, IssueSeverity.WARN,
+                        "\"" + line.rawDescription() + "\" se vende a peso pero no se ha leído el "
+                                + "peso. Escríbelo en la línea y el precio por kilo entrará en la "
+                                + "comparación; sin él, esta compra no es comparable entre súper.",
+                        null, null));
+                continue;
+            }
+
             evaluated++;
             // Con cantidad 1 la igualdad es tautológica: se evalúa igual, pero no
             // se apunta como comprobación conseguida.

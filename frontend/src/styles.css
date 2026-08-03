@@ -132,6 +132,11 @@ tr.error > td { background: #fdeeec; }
 tr.warn > td { background: #fff8e8; }
 tr.edited > td:first-child { box-shadow: inset 3px 0 0 var(--verde); }
 
+tr.weightrow td { padding-top: 0; border-bottom: none; font-size: .85rem; }
+tr.weightrow label { color: var(--gris); }
+tr.weightrow input { display: inline-block; }
+tr.weightrow.missing input.num { border-color: var(--ambar); background: #fff8e8; }
+
 tr.rawrow td { padding-top: 0; border-bottom: none; }
 tr.rawrow code { color: var(--gris); font-size: .82rem; white-space: pre-wrap; }
 

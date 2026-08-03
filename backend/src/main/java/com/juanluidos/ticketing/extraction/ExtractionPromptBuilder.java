@@ -109,6 +109,10 @@ public class ExtractionPromptBuilder {
                     el precio por kilo ("1,394 kg  3,05 €/kg"). Esa sub-línea pertenece al \
                     artículo de ARRIBA: no es una línea aparte. Rellena weight y unit_price con \
                     ella y sold_by = "weight".
+                    - Si pones sold_by = "weight", el campo weight es OBLIGATORIO y NO puede ir a \
+                    null: tiene que llevar el peso impreso, con su unidad. Sin él, el precio por \
+                    kilo no sirve para nada, porque no hay con qué multiplicarlo. Comprueba que \
+                    weight.value por unit_price da line_total antes de darla por buena.
                     """);
         }
 
