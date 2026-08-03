@@ -27,15 +27,18 @@ public class TicketExtractor {
     private final OllamaVisionClient client;
     private final ExtractionPromptBuilder promptBuilder;
     private final ExtractionSchemaProvider schemas;
+    private final ImagePreprocessor preprocessor;
     private final ObjectMapper objectMapper;
 
     public TicketExtractor(OllamaVisionClient client,
                            ExtractionPromptBuilder promptBuilder,
                            ExtractionSchemaProvider schemas,
+                           ImagePreprocessor preprocessor,
                            ObjectMapper objectMapper) {
         this.client = client;
         this.promptBuilder = promptBuilder;
         this.schemas = schemas;
+        this.preprocessor = preprocessor;
         this.objectMapper = objectMapper;
     }
 
@@ -47,7 +50,10 @@ public class TicketExtractor {
      */
     public Result extract(byte[] image, Store storeHint) {
         String prompt = promptBuilder.build(storeHint);
-        String rawResponse = client.chatWithImage(prompt, image, schemas.asJsonNode());
+        // La original se conserva en disco; al modelo va una copia reducida, que
+        // es lo que evita agotar la VRAM de la tarjeta de producción.
+        String rawResponse = client.chatWithImage(
+                prompt, preprocessor.prepare(image), schemas.asJsonNode());
 
         JsonNode parsed = parse(rawResponse);
         verifyAgainstSchema(parsed);

@@ -31,6 +31,7 @@ ticketing:
     model: qwen3-vl:8b
     num-ctx: 8192
     timeout-seconds: 600
+    max-image-dimension: 1600
   validation:
     amount-tolerance: 0.01
     weight-amount-tolerance: 0.02

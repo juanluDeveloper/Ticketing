@@ -37,7 +37,16 @@ public record TicketingProperties(
      * la misma cuantización, o la calidad de extracción que se mide en dev no
      * predice la de producción.
      */
-    public record Ollama(String baseUrl, String model, int numCtx, int timeoutSeconds) {
+    public record Ollama(String baseUrl, String model, int numCtx, int timeoutSeconds,
+                         /**
+                          * Lado mayor máximo de la imagen que viaja al modelo.
+                          * No es una optimización: una foto de móvil sin reducir
+                          * agota la VRAM de una GTX 1070 y la extracción muere con
+                          * "CUDA error: out of memory". Bajarlo de más degrada el
+                          * OCR del ticket denso, así que tocarlo obliga a revisar
+                          * la calidad, no solo que deje de fallar.
+                          */
+                         int maxImageDimension) {
     }
 
     /** Tolerancias de los checksums, en euros. */

@@ -52,6 +52,10 @@ ticketing:
     # la calidad de extracción que se mide en dev no es representativa.
     num-ctx: ${OLLAMA_NUM_CTX:8192}
     timeout-seconds: ${OLLAMA_TIMEOUT_SECONDS:600}
+    # Lado mayor de la imagen que se manda al modelo. Una foto de movil sin
+    # reducir agota los 8 GB de la GTX 1070 y la extraccion muere con
+    # "CUDA error: out of memory". La original se guarda intacta en disco.
+    max-image-dimension: ${OLLAMA_MAX_IMAGE_DIMENSION:1600}
 
   validation:
     # Tolerancias de los checksums, en euros. La sub-línea de peso redondea:
