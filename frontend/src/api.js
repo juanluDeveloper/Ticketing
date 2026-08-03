@@ -44,7 +44,12 @@ async function request(path, { method = 'GET', body, raw = false } = {}) {
     throw new Error(message || `Error ${response.status}`)
   }
   if (raw) return response.blob()
-  return response.status === 204 ? null : response.json()
+
+  // Se comprueba que haya cuerpo en vez de fiarse del código de estado: un
+  // endpoint que devuelva 200 sin contenido rompía el JSON.parse y hacía que
+  // una operación correcta pareciera fallida.
+  const text = await response.text()
+  return text ? JSON.parse(text) : null
 }
 
 export const api = {

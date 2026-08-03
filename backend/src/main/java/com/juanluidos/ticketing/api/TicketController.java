@@ -7,6 +7,7 @@ import com.juanluidos.ticketing.repository.AppUserRepository;
 import com.juanluidos.ticketing.repository.TicketRepository;
 import com.juanluidos.ticketing.validation.TicketValidationService;
 import com.juanluidos.ticketing.validation.ValidationRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -84,6 +85,10 @@ public class TicketController {
      * <p>{@code force} solo hace falta si el ticket está validado: entonces el
      * borrado se lleva también los precios que aportó al histórico.
      */
+    // 204 explícito: un método void devuelve 200 con cuerpo VACÍO, y cualquier
+    // cliente que intente parsearlo como JSON se rompe con "unexpected end of
+    // JSON input" aunque el borrado haya funcionado.
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id,
                        @RequestParam(defaultValue = "false") boolean force) {
