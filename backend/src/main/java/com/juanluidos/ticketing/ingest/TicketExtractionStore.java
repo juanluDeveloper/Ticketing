@@ -185,10 +185,10 @@ public class TicketExtractionStore {
             line.setSoldBy(mapSoldBy(source.soldBy()));
             if (source.weight() != null) {
                 line.setWeightValue(source.weight().value());
-                line.setWeightUnit(source.weight().unit());
+                line.setWeightUnit(normalizeUnit(source.weight().unit()));
             }
             line.setPrintedUnitPrice(source.unitPrice());
-            line.setPrintedUnitPriceUnit(source.unitPriceUnit());
+            line.setPrintedUnitPriceUnit(normalizeUnit(source.unitPriceUnit()));
             line.setLineTotal(source.lineTotal() == null ? BigDecimal.ZERO : source.lineTotal());
             recoverWeightFromQuantity(line);
             line.setTaxLetter(blankToNull(source.taxLetter()));
@@ -240,12 +240,30 @@ public class TicketExtractionStore {
         }
 
         line.setWeightValue(quantity);
-        line.setWeightUnit(unit.toLowerCase());
+        line.setWeightUnit(unit);
         // A peso, la cantidad es una: se compró UNA pieza que pesa eso.
         line.setQuantity(BigDecimal.ONE);
     }
 
     private static final List<String> WEIGHT_UNITS = List.of("kg", "g", "gr");
+
+    /**
+     * Deja la unidad en su forma desnuda: {@code kg}, {@code ud}, {@code l}.
+     *
+     * <p>El modelo la devuelve tal como está impresa en el ticket — "€/kg", no
+     * "kg" —, y eso rompía dos cosas a la vez sin hacer ruido: la recuperación
+     * del peso comparaba contra "kg" y nunca coincidía, y la interfaz pintaba
+     * "€/€/kg". Se normaliza aquí, al entrar, para que nadie más tenga que
+     * saberlo.
+     */
+    private String normalizeUnit(String unit) {
+        if (unit == null) {
+            return null;
+        }
+        String tail = unit.substring(unit.lastIndexOf('/') + 1);
+        String letters = tail.replaceAll("[^\\p{L}]", "").toLowerCase();
+        return letters.isBlank() ? null : letters;
+    }
 
     private void saveTaxSummary(Ticket ticket, ExtractedTicket extracted) {
         taxSummaries.deleteAll(taxSummaries.findByTicketId(ticket.getId()));

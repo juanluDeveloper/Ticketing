@@ -62,6 +62,32 @@ class WeightFromQuantityTest {
         assertThat(line.getQuantity()).isEqualByComparingTo("1");
     }
 
+    /**
+     * Lo que devuelve el modelo de verdad es la unidad tal como está impresa:
+     * "€/kg", no "kg". Comparar contra "kg" a secas hacía que la recuperación
+     * no se disparara nunca, y de paso la interfaz pintaba "€/€/kg".
+     */
+    @Test
+    void understandsTheUnitAsThePrinterWritesIt() {
+        LineItem line = extractOneLine(
+                weightLine("0.26", "31.95", "€/kg", "8.31", null));
+
+        assertThat(line.getPrintedUnitPriceUnit()).isEqualTo("kg");
+        assertThat(line.getWeightValue()).isEqualByComparingTo("0.26");
+        assertThat(line.getWeightUnit()).isEqualTo("kg");
+        assertThat(line.getQuantity()).isEqualByComparingTo("1");
+    }
+
+    @Test
+    void normalizesTheUnitOfAWeightTheModelDidRead() {
+        LineItem line = extractOneLine(
+                weightLine("1", "3.05", "EUR/kg", "4.25",
+                        new ExtractedWeight(new BigDecimal("1.394"), "Kg")));
+
+        assertThat(line.getWeightUnit()).isEqualTo("kg");
+        assertThat(line.getPrintedUnitPriceUnit()).isEqualTo("kg");
+    }
+
     /** Si la cuenta no sale, ese número no es un peso y no se toca nada. */
     @Test
     void leavesItAloneWhenTheArithmeticDoesNotAddUp() {
