@@ -114,10 +114,19 @@ public class OllamaVisionClient {
         // Es la telemetría que hace falta para dimensionar num_ctx en una GPU más
         // pequeña: prompt + salida tienen que caber en el contexto, y la imagen
         // de un ticket alto se lleva la mayor parte del prompt.
-        log.info("Ollama {}: prompt={} tok, salida={} tok, total={} tok de num_ctx={}, {} ms",
+        log.info("Ollama {}: prompt={} tok, salida={} tok, total={} tok de num_ctx={}, {} ms, fin={}",
                 config.model(), response.promptEvalCount(), response.evalCount(),
                 response.promptEvalCount() + response.evalCount(), config.numCtx(),
-                response.totalDuration() / 1_000_000);
+                response.totalDuration() / 1_000_000, response.doneReason());
+
+        // "length" significa que se acabó el presupuesto de tokens a media
+        // respuesta: el JSON puede llegar bien formado pero con líneas de menos.
+        // Es un truncado silencioso, y sin este aviso solo se nota porque C1 no
+        // cuadra — si es que C1 puede correr.
+        if (response.doneReason() != null && !"stop".equals(response.doneReason())) {
+            log.warn("La respuesta terminó por '{}' y no por 'stop': puede faltar parte del ticket",
+                    response.doneReason());
+        }
 
         String content = response.message().content();
         if (content != null && !content.isBlank()) {
@@ -139,7 +148,7 @@ public class OllamaVisionClient {
     @com.fasterxml.jackson.databind.annotation.JsonNaming(
             com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy.class)
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
-    record OllamaChatResponse(Message message, String model, Boolean done,
+    record OllamaChatResponse(Message message, String model, Boolean done, String doneReason,
                               long promptEvalCount, long evalCount, long totalDuration) {
         record Message(String role, String content, String thinking) {
         }

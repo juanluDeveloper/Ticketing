@@ -60,6 +60,9 @@ input, select { font: inherit; padding: .3rem .4rem; border: 1px solid var(--bor
 }
 .filebutton input { display: none; }
 
+.storepick { display: block; margin-bottom: .8rem; color: var(--gris); font-size: .9rem; }
+.storepick select { display: block; margin-top: .2rem; min-width: 14rem; }
+
 /* --- lista de tickets --- */
 .tickets { list-style: none; padding: 0; margin: 0; }
 .tickets li { border-top: 1px solid var(--borde); }

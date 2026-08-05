@@ -75,6 +75,14 @@ public class TicketExtractionStore {
                 .flatMap(stores::findById)
                 .or(() -> storeCodeHint == null ? Optional.empty() : stores.findByCode(storeCodeHint))
                 .orElse(null);
+
+        // Si el súper viene elegido a mano, se fija YA en el ticket. Así queda
+        // claro que es una decisión de la persona y no una conjetura, y al
+        // guardar no se sustituye por lo que el modelo crea haber leído.
+        if (store != null && ticket.getStore() == null) {
+            ticket.setStore(store);
+            tickets.save(ticket);
+        }
         return new ExtractionInput(ticketId, ticket.getImagePath(), store);
     }
 
@@ -100,7 +108,14 @@ public class TicketExtractionStore {
                                         String model, Store storeUsedForPrompt) {
         Ticket ticket = tickets.findById(ticketId).orElseThrow();
 
-        Store store = detectStore(extracted).orElse(ticket.getStore());
+        // Lo que ya esté puesto MANDA sobre lo que el modelo crea haber leído.
+        // El CIF vive en letra diminuta al pie del ticket y a veces ni se llega
+        // a él: un Cash Fresh salió etiquetado como Xinya, y con el súper
+        // equivocado hasta las comprobaciones mienten — C4 pasó a "aplicable"
+        // sin serlo y dio verde contra un recuento de artículos inventado.
+        Store store = ticket.getStore() != null
+                ? ticket.getStore()
+                : detectStore(extracted).orElse(null);
         ticket.setStore(store);
         boolean layoutRulesWereWrong = store != null
                 && (storeUsedForPrompt == null || !store.getId().equals(storeUsedForPrompt.getId()));
