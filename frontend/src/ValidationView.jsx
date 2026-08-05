@@ -323,6 +323,15 @@ function LineRow({ line, storeCode, edited, valueOf, patch }) {
             value={valueOf(line, 'printedUnitPrice') ?? ''}
             onChange={(e) => patch(line.id, 'printedUnitPrice', e.target.value)}
           />
+          {/*
+            La misma columna significa cosas distintas según cómo se venda el
+            producto: EUR/unidad en un envase, EUR/kg en uno a peso. Sin la
+            unidad a la vista, un 31,95 en un queso de 260 g parece el precio de
+            la pieza y no el del kilo.
+          */}
+          {line.printedUnitPriceUnit && line.printedUnitPriceUnit !== 'ud' && (
+            <span className="muted small"> €/{line.printedUnitPriceUnit}</span>
+          )}
         </td>
         <td>
           <input
@@ -406,10 +415,18 @@ function LineRow({ line, storeCode, edited, valueOf, patch }) {
                 onChange={(e) => patch(line.id, 'weightUnit', e.target.value)}
               />
             </label>
-            {line.weightValue == null && (
+            {line.weightValue == null ? (
               <span className="muted small">
                 {' '}
                 · sin peso no hay precio por kilo con el que comparar
+              </span>
+            ) : (
+              // La cuenta que cuadra en una línea a peso es peso x precio por
+              // kilo, no cantidad x precio: enseñarla evita tener que deducirla.
+              <span className="muted small">
+                {' '}
+                · {fmtPlain(line.weightValue)} × {fmtPlain(line.printedUnitPrice)} ={' '}
+                {fmtPlain(line.lineTotal)} €
               </span>
             )}
           </td>
@@ -631,6 +648,12 @@ function ErrorBox({ message, onClose }) {
       <button onClick={onClose}>Volver</button>
     </div>
   )
+}
+
+/** Sin decimales forzados: un peso de 0,26 kg no debe salir como "0,26" fijo. */
+function fmtPlain(value) {
+  if (value == null) return '—'
+  return String(Number(value)).replace('.', ',')
 }
 
 function fmt(value) {
