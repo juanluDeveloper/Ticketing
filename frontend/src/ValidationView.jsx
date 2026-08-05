@@ -390,7 +390,9 @@ function LineRow({ line, storeCode, edited, valueOf, patch }) {
               Peso{' '}
               <input
                 className="num"
-                placeholder="1,082"
+                // Sin texto de ejemplo dentro del campo: un número en gris ahí
+                // se lee como un valor puesto y no como un hueco vacío.
+                placeholder=""
                 value={valueOf(line, 'weightValue') ?? ''}
                 onChange={(e) => patch(line.id, 'weightValue', e.target.value)}
               />

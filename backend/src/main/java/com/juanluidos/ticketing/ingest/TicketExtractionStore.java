@@ -190,6 +190,7 @@ public class TicketExtractionStore {
             line.setPrintedUnitPrice(source.unitPrice());
             line.setPrintedUnitPriceUnit(source.unitPriceUnit());
             line.setLineTotal(source.lineTotal() == null ? BigDecimal.ZERO : source.lineTotal());
+            recoverWeightFromQuantity(line);
             line.setTaxLetter(blankToNull(source.taxLetter()));
             line.setPromo(Boolean.TRUE.equals(source.isPromo()));
             line.setPromoNote(blankToNull(source.promoNote()));
@@ -207,6 +208,44 @@ public class TicketExtractionStore {
         }
         return result;
     }
+
+    /**
+     * Recupera el peso cuando el modelo lo ha metido en la casilla de cantidad.
+     *
+     * <p>Cash Fresh imprime los productos a peso con el mismo formato que las
+     * cantidades: "QUESO CABRA PAYOYA  0,260x 31,95  8,31". El modelo pone
+     * 0,260 en quantity y deja weight vacío, lo cual es una lectura razonable
+     * del papel — pero entonces no hay precio por kilo y esa compra se queda
+     * fuera de la comparación.
+     *
+     * <p>La conversión solo se hace cuando la aritmética la demuestra: el precio
+     * unitario está en unidad de peso y cantidad por precio da el importe. Si la
+     * cuenta cuadra, ese número es un peso y no una cantidad de unidades.
+     */
+    private void recoverWeightFromQuantity(LineItem line) {
+        if (line.getSoldBy() != SoldBy.WEIGHT || line.getWeightValue() != null) {
+            return;
+        }
+        BigDecimal quantity = line.getQuantity();
+        BigDecimal unitPrice = line.getPrintedUnitPrice();
+        String unit = line.getPrintedUnitPriceUnit();
+        if (quantity == null || unitPrice == null || unit == null
+                || WEIGHT_UNITS.stream().noneMatch(unit::equalsIgnoreCase)) {
+            return;
+        }
+
+        BigDecimal expected = quantity.multiply(unitPrice);
+        if (expected.subtract(line.getLineTotal()).abs().compareTo(new BigDecimal("0.02")) > 0) {
+            return;
+        }
+
+        line.setWeightValue(quantity);
+        line.setWeightUnit(unit.toLowerCase());
+        // A peso, la cantidad es una: se compró UNA pieza que pesa eso.
+        line.setQuantity(BigDecimal.ONE);
+    }
+
+    private static final List<String> WEIGHT_UNITS = List.of("kg", "g", "gr");
 
     private void saveTaxSummary(Ticket ticket, ExtractedTicket extracted) {
         taxSummaries.deleteAll(taxSummaries.findByTicketId(ticket.getId()));
