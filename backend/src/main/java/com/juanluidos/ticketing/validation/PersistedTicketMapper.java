@@ -16,13 +16,13 @@ import java.util.List;
  * extracción, que es justo lo contrario de lo que necesita una pantalla donde se
  * corrige: al arreglar la línea que fallaba, C1 y C2 tienen que ponerse verdes.
  */
-final class PersistedTicketMapper {
+public final class PersistedTicketMapper {
 
     private PersistedTicketMapper() {
     }
 
-    static ExtractedTicket toExtracted(Ticket ticket, List<LineItem> lines,
-                                       List<TicketTaxSummary> taxes) {
+    public static ExtractedTicket toExtracted(Ticket ticket, List<LineItem> lines,
+                                              List<TicketTaxSummary> taxes) {
         List<ExtractedTicket.ExtractedLineItem> mapped = lines.stream()
                 .map(PersistedTicketMapper::toLine)
                 .toList();

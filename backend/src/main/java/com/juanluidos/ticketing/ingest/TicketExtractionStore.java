@@ -158,7 +158,16 @@ public class TicketExtractionStore {
         List<LineItem> saved = saveLines(ticket, store, extracted);
         saveTaxSummary(ticket, extracted);
 
-        CheckReport report = checkEngine.evaluate(extracted, store,
+        // Se evalúa lo GUARDADO, no lo que devolvió el modelo. Al guardar se
+        // normalizan unidades y se recupera el peso que venía en la casilla de
+        // cantidad, así que juzgar la respuesta cruda dejaba avisos que ya no
+        // correspondían: la tabla mostraba el peso puesto y el semáforo seguía
+        // diciendo que faltaba. Los semáforos tienen que hablar del mismo dato
+        // que ve la persona.
+        CheckReport report = checkEngine.evaluate(
+                com.juanluidos.ticketing.validation.PersistedTicketMapper.toExtracted(
+                        ticket, saved, taxSummaries.findByTicketId(ticket.getId())),
+                store,
                 store == null ? List.of() : taxLetters.findByStoreId(store.getId()));
         saveReport(ticket, saved, report);
 

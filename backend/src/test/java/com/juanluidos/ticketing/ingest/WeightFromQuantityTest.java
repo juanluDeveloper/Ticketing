@@ -50,6 +50,23 @@ class WeightFromQuantityTest {
     @Autowired
     private StoreRepository stores;
 
+    @Autowired
+    private com.juanluidos.ticketing.repository.ValidationIssueRepository issues;
+
+    /**
+     * Los semáforos tienen que juzgar lo GUARDADO, no la respuesta cruda del
+     * modelo. Al guardar se recupera el peso, así que evaluar lo crudo dejaba un
+     * aviso de "falta el peso" sobre una línea que en la tabla ya lo tenía.
+     */
+    @Test
+    void doesNotWarnAboutAMissingWeightItJustRecovered() {
+        Long ticketId = extractOneLine(
+                weightLine("0.26", "31.95", "€/kg", "8.31", null)).getTicket().getId();
+
+        assertThat(issues.findByTicketId(ticketId))
+                .noneMatch(i -> i.getMessage().contains("no se ha leído el peso"));
+    }
+
     /** El caso real: 0,26 x 31,95 EUR/kg = 8,31. Ese 0,26 son kilos. */
     @Test
     void movesTheWeightOutOfTheQuantityWhenTheArithmeticProvesIt() {
