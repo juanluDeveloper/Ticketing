@@ -1,0 +1,111 @@
+:root{
+/* --- Neutros. Cálidos, heredados del #f6f6f4 del prototipo: el papel del ticket
+   es crudo, no azulado. --- */
+--n-0:#ffffff;--n-25:#faf9f7;--n-50:#f4f3f0;--n-100:#eae8e4;--n-200:#dcd9d3;
+--n-300:#c3bfb8;--n-400:#9c988f;--n-500:#77736b;--n-600:#5b5751;--n-700:#423f3a;
+--n-800:#2b2926;--n-900:#1a1917;
+
+/* --- Verde. #1f6f4a es la marca y a la vez el "pasa": se mantiene tal cual y se
+   le construye escala alrededor. --- */
+--verde-50:#e8f3ec;--verde-100:#cfe7d8;--verde-200:#9fcfb2;--verde-300:#63b287;
+--verde-400:#3f9a6d;--verde-500:#1f6f4a;--verde-600:#185a3b;--verde-700:#12432c;--verde-800:#0c2c1d;
+
+/* --- Rojo. #b3261e cumple 5,9:1 sobre blanco: se conserva como color de texto. --- */
+--rojo-50:#fdeceb;--rojo-100:#fbd8d5;--rojo-200:#f2ada7;--rojo-300:#e0766c;
+--rojo-500:#b3261e;--rojo-600:#941d17;--rojo-700:#6e1511;
+
+/* --- Ámbar. #8a6100 es marrón dorado precisamente para poder ser texto (5,7:1).
+   El relleno claro va aparte; nunca se usa el 500 como fondo. --- */
+--ambar-50:#fdf4e2;--ambar-100:#f9e7bf;--ambar-200:#e9cb8a;--ambar-300:#c9a23f;
+--ambar-500:#8a6100;--ambar-600:#6f4e00;--ambar-700:#523a00;
+
+/* --- Azul. Solo informativo: "preferido", "pendiente de revisar". Nunca es un
+   estado de comprobación, para no competir con el semáforo. --- */
+--azul-50:#eaf0fc;--azul-100:#d3e0f8;--azul-200:#a9c1ee;--azul-500:#1a3d8f;--azul-600:#14306f;
+
+/* --- Alias semánticos --- */
+--text-strong:var(--n-900);
+--text-body:var(--n-800);
+--text-muted:var(--n-500);
+--text-faint:var(--n-400);
+--text-inverse:var(--n-0);
+--text-link:var(--verde-600);
+
+--surface-page:var(--n-0);
+--surface-card:var(--n-0);
+--surface-sunken:var(--n-50);
+--surface-raised:var(--n-0);
+--surface-hover:var(--n-50);
+--surface-selected:var(--verde-50);
+
+--border-subtle:var(--n-100);
+--border-default:var(--n-200);
+--border-strong:var(--n-300);
+--border-field:var(--n-300);
+
+/* Semáforo de comprobaciones: tres estados, nunca dos. */
+--check-pass-fg:var(--verde-600);--check-pass-bg:var(--verde-50);--check-pass-line:var(--verde-500);
+--check-fail-fg:var(--rojo-500);--check-fail-bg:var(--rojo-50);--check-fail-line:var(--rojo-500);
+--check-na-fg:var(--n-500);--check-na-bg:var(--n-50);--check-na-line:var(--n-300);
+
+--warn-fg:var(--ambar-500);--warn-bg:var(--ambar-50);--warn-line:var(--ambar-300);
+--danger-fg:var(--rojo-500);--danger-bg:var(--rojo-50);--danger-line:var(--rojo-500);
+--info-fg:var(--azul-500);--info-bg:var(--azul-50);--info-line:var(--azul-200);
+
+--accent-fg:var(--verde-500);
+--accent-bg:var(--verde-500);
+--accent-bg-hover:var(--verde-600);
+--accent-bg-active:var(--verde-700);
+--accent-soft-bg:var(--verde-50);
+
+--focus-ring:var(--verde-500);
+--focus-ring-contrast:var(--n-0);
+
+/* Filas de la tabla de validación. Tintes muy bajos: 22 filas teñidas al 10 %
+   dejan de ser un aviso y pasan a ser un fondo. */
+--row-error-bg:#fdf1ef;
+--row-warn-bg:#fdf8ec;
+--row-edited-line:var(--verde-500);
+}
+
+[data-theme="dark"]{
+--text-strong:#f2f1ee;
+--text-body:#dedcd7;
+--text-muted:#9c988f;
+--text-faint:#77736b;
+--text-inverse:#14150f;
+--text-link:#63b287;
+
+--surface-page:#141513;
+--surface-card:#1c1e1b;
+--surface-sunken:#232522;
+--surface-raised:#242723;
+--surface-hover:#252824;
+--surface-selected:#17301f;
+
+--border-subtle:#2c2f2b;
+--border-default:#3a3e39;
+--border-strong:#4d514b;
+--border-field:#4d514b;
+
+--check-pass-fg:#63b287;--check-pass-bg:#132a1e;--check-pass-line:#3f9a6d;
+--check-fail-fg:#e0766c;--check-fail-bg:#2e1614;--check-fail-line:#e0766c;
+--check-na-fg:#9c988f;--check-na-bg:#232522;--check-na-line:#4d514b;
+
+--warn-fg:#c9a23f;--warn-bg:#2a2211;--warn-line:#8a6100;
+--danger-fg:#e0766c;--danger-bg:#2e1614;--danger-line:#e0766c;
+--info-fg:#a9c1ee;--info-bg:#161d2e;--info-line:#1a3d8f;
+
+--accent-fg:#63b287;
+--accent-bg:#1f6f4a;
+--accent-bg-hover:#28855a;
+--accent-bg-active:#3f9a6d;
+--accent-soft-bg:#17301f;
+
+--focus-ring:#63b287;
+--focus-ring-contrast:#141513;
+
+--row-error-bg:#251512;
+--row-warn-bg:#221c10;
+--row-edited-line:#3f9a6d;
+}

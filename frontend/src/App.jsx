@@ -1,10 +1,16 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { api, clearCredentials, hasCredentials, setCredentials } from './api.js'
 import UploadView from './UploadView.jsx'
 import TicketList from './TicketList.jsx'
 import ValidationView from './ValidationView.jsx'
 import HistoryView from './HistoryView.jsx'
 import ComparatorView from './ComparatorView.jsx'
+
+const TABS = [
+  ['tickets', 'Tickets'],
+  ['historico', 'Histórico'],
+  ['comparador', 'Comparador'],
+]
 
 export default function App() {
   const [authed, setAuthed] = useState(hasCredentials())
@@ -17,65 +23,60 @@ export default function App() {
   return (
     <div className="app">
       <header>
-        <h1>Tickets de la compra</h1>
-        <nav>
+        {/* La cabecera es pegajosa: en la validación se baja por 22 líneas y
+            perder las pestañas obliga a subir del todo para cambiar de vista. */}
+        <div className="headerinner">
+          <div className="brand">
+            <img src="/icon.svg" width="22" height="22" alt="" />
+            <h1>Tickets de la compra</h1>
+          </div>
+          <nav>
+            {TABS.map(([id, label]) => (
+              <button
+                key={id}
+                className={tab === id ? 'tab active' : 'tab'}
+                aria-current={tab === id ? 'page' : undefined}
+                onClick={() => {
+                  setTab(id)
+                  setOpenTicketId(null)
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
           <button
-            className={tab === 'tickets' ? 'tab active' : 'tab'}
+            className="link"
             onClick={() => {
-              setTab('tickets')
-              setOpenTicketId(null)
+              clearCredentials()
+              setAuthed(false)
             }}
           >
-            Tickets
+            Salir
           </button>
-          <button
-            className={tab === 'historico' ? 'tab active' : 'tab'}
-            onClick={() => {
-              setTab('historico')
-              setOpenTicketId(null)
-            }}
-          >
-            Histórico
-          </button>
-          <button
-            className={tab === 'comparador' ? 'tab active' : 'tab'}
-            onClick={() => {
-              setTab('comparador')
-              setOpenTicketId(null)
-            }}
-          >
-            Comparador
-          </button>
-        </nav>
-        <button
-          className="link"
-          onClick={() => {
-            clearCredentials()
-            setAuthed(false)
-          }}
-        >
-          Salir
-        </button>
+        </div>
       </header>
 
-      {tab === 'historico' && <HistoryView />}
-      {tab === 'comparador' && <ComparatorView />}
+      <main>
+        {tab === 'historico' && <HistoryView />}
+        {tab === 'comparador' && <ComparatorView />}
 
-      {tab === 'tickets' &&
-        (openTicketId ? (
-          <ValidationView
-            ticketId={openTicketId}
-            onClose={() => {
-              setOpenTicketId(null)
-              setReloadToken((n) => n + 1)
-            }}
-          />
-        ) : (
-          <>
-            <UploadView onUploaded={(id) => setOpenTicketId(id)} />
-            <TicketList reloadToken={reloadToken} onOpen={setOpenTicketId} />
-          </>
-        ))}
+        {tab === 'tickets' &&
+          (openTicketId ? (
+            <ValidationView
+              ticketId={openTicketId}
+              onClose={() => {
+                setOpenTicketId(null)
+                setReloadToken((n) => n + 1)
+              }}
+            />
+          ) : (
+            <>
+              <UploadView onUploaded={(id) => setOpenTicketId(id)} />
+              <TicketList reloadToken={reloadToken} onOpen={setOpenTicketId} />
+            </>
+          ))}
+      </main>
     </div>
   )
 }
@@ -98,23 +99,31 @@ function Login({ onDone }) {
   }
 
   return (
-    <form className="login" onSubmit={submit}>
-      <h1>Tickets</h1>
-      <label>
-        Usuario
-        <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
-      </label>
-      <label>
-        Contraseña
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete="current-password"
-        />
-      </label>
-      {error && <p className="error">{error}</p>}
-      <button type="submit">Entrar</button>
-    </form>
+    <div className="loginwrap">
+      <form className="login" onSubmit={submit}>
+        <div className="loginbrand">
+          <img src="/icon.svg" width="26" height="26" alt="" />
+          <h1>Tickets de la compra</h1>
+        </div>
+        <div className="loginbox">
+          <label>
+            Usuario
+            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
+          </label>
+          <label>
+            Contraseña
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+            />
+          </label>
+          {error && <p className="error small">{error}</p>}
+          <button className="primary" type="submit">Entrar</button>
+        </div>
+        <p className="hint">Un solo usuario, autenticación básica. No hay registro ni recuperación de contraseña.</p>
+      </form>
+    </div>
   )
 }

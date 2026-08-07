@@ -1,0 +1,25 @@
+:root{
+/* Escala de 4, con 2 y 6 para la densidad de tabla. */
+--sp-0:0; /* @kind spacing */
+--sp-1:2px;--sp-2:4px;--sp-3:6px;--sp-4:8px;--sp-5:12px;--sp-6:16px;
+--sp-7:20px;--sp-8:24px;--sp-9:32px;--sp-10:40px;--sp-11:48px;--sp-12:64px;
+
+--gap-field:var(--sp-3);
+--gap-inline:var(--sp-4);
+--gap-stack:var(--sp-5);
+--gap-section:var(--sp-8);
+
+--pad-card:var(--sp-6);
+--pad-card-lg:var(--sp-7);
+--pad-cell-y:var(--sp-3);
+--pad-cell-x:var(--sp-4);
+
+--layout-max:1400px;
+--layout-gutter:var(--sp-6);
+--photo-col:352px;
+
+/* Objetivo táctil mínimo en móvil. */
+--tap-min:44px;
+--control-h:32px;
+--control-h-lg:40px;
+}

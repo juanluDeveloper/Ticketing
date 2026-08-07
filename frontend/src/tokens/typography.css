@@ -1,0 +1,39 @@
+:root{
+--font-sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+--font-mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
+
+/* Base 15px, la del prototipo: el usuario mira 22 filas a la vez y 16 px sobran. */
+--fs-10:10px;--fs-11:11px;--fs-12:12px;--fs-13:13px;--fs-15:15px;
+--fs-17:17px;--fs-20:20px;--fs-24:24px;--fs-30:30px;--fs-40:40px;
+
+--lh-tight:1.15; /* @kind other */
+--lh-snug:1.3; /* @kind other */
+--lh-normal:1.45; /* @kind other */
+--lh-loose:1.6; /* @kind other */
+
+--fw-regular:400; /* @kind other */
+--fw-medium:500; /* @kind other */
+--fw-semibold:600; /* @kind other */
+--fw-bold:700; /* @kind other */
+
+--ls-caps:.06em; /* @kind other */
+--ls-tight:-.01em; /* @kind other */
+--ls-normal:0; /* @kind other */
+
+/* Roles. Se nombran por uso, no por tamaño. */
+--type-page-title:var(--fw-semibold) var(--fs-20)/var(--lh-tight) var(--font-sans);
+--type-section:var(--fw-semibold) var(--fs-15)/var(--lh-snug) var(--font-sans);
+--type-body:var(--fw-regular) var(--fs-15)/var(--lh-normal) var(--font-sans);
+--type-body-sm:var(--fw-regular) var(--fs-13)/var(--lh-normal) var(--font-sans);
+--type-label:var(--fw-medium) var(--fs-12)/var(--lh-snug) var(--font-sans);
+--type-caps:var(--fw-semibold) var(--fs-11)/var(--lh-snug) var(--font-sans);
+--type-metric:var(--fw-semibold) var(--fs-24)/var(--lh-tight) var(--font-sans);
+--type-metric-lg:var(--fw-semibold) var(--fs-30)/var(--lh-tight) var(--font-sans);
+--type-mono:var(--fw-regular) var(--fs-12)/var(--lh-normal) var(--font-mono);
+--type-mono-sm:var(--fw-regular) var(--fs-11)/var(--lh-normal) var(--font-mono);
+
+/* Todo importe va con cifras tabulares: una columna de euros que baila es
+   ilegible, y esta app es una columna de euros. */
+--num-tabular:'tnum' 1,'lnum' 1; /* @kind other */
+}
+.tnum,[data-tnum]{font-variant-numeric:tabular-nums lining-nums;font-feature-settings:var(--num-tabular)}

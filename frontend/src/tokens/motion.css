@@ -1,0 +1,20 @@
+:root{
+/* Corto y sin rebote. Nada celebra nada aquí. */
+--dur-1:90ms; /* @kind other */
+--dur-2:140ms; /* @kind other */
+--dur-3:220ms; /* @kind other */
+--dur-slow:600ms; /* @kind other */
+--ease-out:cubic-bezier(.2,.8,.3,1); /* @kind other */
+--ease-in-out:cubic-bezier(.4,0,.2,1); /* @kind other */
+--t-hover:background-color var(--dur-1) var(--ease-out),border-color var(--dur-1) var(--ease-out),color var(--dur-1) var(--ease-out); /* @kind other */
+--t-panel:opacity var(--dur-2) var(--ease-out),transform var(--dur-2) var(--ease-out); /* @kind other */
+}
+@media (prefers-reduced-motion:reduce){:root{
+--dur-1:0ms; /* @kind other */
+--dur-2:0ms; /* @kind other */
+--dur-3:0ms; /* @kind other */
+--dur-slow:0ms; /* @kind other */
+}}
+@keyframes tk-pulse{0%,100%{opacity:1}50%{opacity:.45}}
+@keyframes tk-spin{to{transform:rotate(360deg)}}
+@keyframes tk-sweep{0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}
