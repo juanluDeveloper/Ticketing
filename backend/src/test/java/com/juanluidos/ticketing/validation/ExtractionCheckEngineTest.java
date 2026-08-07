@@ -123,6 +123,65 @@ class ExtractionCheckEngineTest {
         assertThat(c3.detail()).contains("no desambigua");
     }
 
+    /**
+     * El ticket de 53,93 €. El TPV imprime al 10 % base 25,97 y cuota 2,58 para
+     * un bruto de 28,55, y 28,55 / 1,10 son 25,95: sus propias cifras no cumplen
+     * el tipo nominal (25,97 × 10 % daría 2,60). Dividir hacía que C3 marcara en
+     * rojo una lectura perfecta, en la que las tres letras cuadran al céntimo
+     * contra base + cuota.
+     */
+    @Test
+    void c3AcceptsThePosOwnRoundingBetweenBaseAndTax() {
+        CheckReport report = engine.evaluate(bigCashFreshTicket(bigCashFreshLines(), withTax()),
+                cashFresh(), cashFreshLetters());
+
+        assertThat(outcome(report, CheckCode.C1).passed()).isTrue();
+        assertThat(outcome(report, CheckCode.C2).passed()).isTrue();
+        assertThat(outcome(report, CheckCode.C3).passed()).isTrue();
+        assertThat(outcome(report, CheckCode.C5).passed()).isTrue();
+        assertThat(report.hasErrors()).isFalse();
+    }
+
+    /** Comparar contra base + cuota no afloja la detección del desplazamiento. */
+    @Test
+    void c3StillCatchesASwappedLetterWhenComparingGross() {
+        List<ExtractedLineItem> lines = new ArrayList<>(bigCashFreshLines());
+        lines.set(15, withLetter(lines.get(15), "C"));   // NUEZ PECANA, era A
+        lines.set(16, withLetter(lines.get(16), "A"));   // PAULANER, era C
+
+        CheckReport report = engine.evaluate(bigCashFreshTicket(lines, withTax()),
+                cashFresh(), cashFreshLetters());
+
+        assertThat(outcome(report, CheckCode.C1).passed()).isTrue();
+        assertThat(outcome(report, CheckCode.C3).passed()).isFalse();
+        assertThat(report.findings())
+                .anyMatch(f -> f.code() == CheckCode.C3 && f.message().contains("desplazamiento"));
+    }
+
+    /**
+     * Sin cuota impresa hay que volver a dividir, y entonces la tolerancia tiene
+     * que absorber el medio céntimo que el TPV puede haberse guardado en cada
+     * línea. Ensancharla no ciega la comprobación: el desplazamiento mueve
+     * importes enteros, no céntimos.
+     */
+    @Test
+    void c3FallsBackToBasesWhenTheBreakdownHasNoTax() {
+        CheckReport.CheckOutcome c3 = outcome(
+                engine.evaluate(bigCashFreshTicket(bigCashFreshLines(), withoutTax()),
+                        cashFresh(), cashFreshLetters()),
+                CheckCode.C3);
+
+        assertThat(c3.passed()).isTrue();
+        assertThat(c3.detail()).contains("no trae cuota");
+
+        List<ExtractedLineItem> swapped = new ArrayList<>(bigCashFreshLines());
+        swapped.set(15, withLetter(swapped.get(15), "C"));
+        swapped.set(16, withLetter(swapped.get(16), "A"));
+
+        assertThat(outcome(engine.evaluate(bigCashFreshTicket(swapped, withoutTax()),
+                cashFresh(), cashFreshLetters()), CheckCode.C3).passed()).isFalse();
+    }
+
     // ------------------------------------------------------------------
     // Mercadona
     // ------------------------------------------------------------------
@@ -238,6 +297,55 @@ class ExtractionCheckEngineTest {
         return lines;
     }
 
+    /** Las 22 líneas del ticket de 53,93 €: A suma 17,48, B 28,55 y C 7,90. */
+    private List<ExtractedLineItem> bigCashFreshLines() {
+        return List.of(
+                cf("ALPRO VAINILLA 400GR", 2, "2.25", "4.50", "B"),
+                cf("ARENA GATO 4 KG", 1, "2.80", "2.80", "C"),
+                cf("BOLSA BASURA IFA 5L", 1, "1.25", "1.25", "C"),
+                cf("CALABACIN FRIES 300G", 1, "2.99", "2.99", "B"),
+                cf("CALDO VERDURAS IFA", 1, "0.95", "0.95", "B"),
+                cf("CERVEZA HOEGAARDEN", 1, "1.80", "1.80", "C"),
+                cf("CHOCOLATE POSTRE 200", 1, "2.18", "2.18", "B"),
+                cf("DULCE LECHE LA GRAN", 1, "2.70", "2.70", "B"),
+                cf("ELIGES MUESLI C. CHO", 1, "2.29", "2.29", "B"),
+                cf("HUMMUS MARRAKECH 240", 1, "1.69", "1.69", "B"),
+                cf("HUMMUS PIM 240GR ENS", 1, "1.45", "1.45", "B"),
+                cf("IFA ELIGES AVELLANA", 1, "1.21", "1.21", "B"),
+                cf("JAMON 50% RAZA IBCEB", 1, "3.99", "3.99", "B"),
+                cf("LECHE F.ENT VALEME", 1, "1.13", "1.13", "A"),
+                cf("MUESLI FRUTOS SECOS", 1, "2.05", "2.05", "B"),
+                cf("NUEZ PECANA SAN BLAS", 1, "3.90", "3.90", "A"),
+                cf("PAULANER CERVEZA TG", 1, "1.25", "1.25", "C"),
+                cfWeight("QUESO CABRA PAYOYA", "0.260", "31.95", "8.31", "A"),
+                cf("QUESO FETA TACO 200G", 1, "3.35", "3.35", "A"),
+                cf("TEQUEÑO DE QUESO P-6", 1, "2.55", "2.55", "B"),
+                cf("LECHE ENTERA ACORES", 1, "0.79", "0.79", "A"),
+                cf("BASTONCILLO IFA 200", 1, "0.80", "0.80", "C"));
+    }
+
+    /** El desglose tal cual lo imprime: la base al 10 % no es 28,55 / 1,10. */
+    private List<ExtractedTaxBreakdown> withTax() {
+        return List.of(
+                new ExtractedTaxBreakdown(new BigDecimal("0.04"), new BigDecimal("16.81"), new BigDecimal("0.67")),
+                new ExtractedTaxBreakdown(new BigDecimal("0.10"), new BigDecimal("25.97"), new BigDecimal("2.58")),
+                new ExtractedTaxBreakdown(new BigDecimal("0.21"), new BigDecimal("6.52"), new BigDecimal("1.38")));
+    }
+
+    private List<ExtractedTaxBreakdown> withoutTax() {
+        return withTax().stream()
+                .map(b -> new ExtractedTaxBreakdown(b.rate(), b.base(), null))
+                .toList();
+    }
+
+    private ExtractedTicket bigCashFreshTicket(List<ExtractedLineItem> lines,
+                                               List<ExtractedTaxBreakdown> breakdown) {
+        return new ExtractedTicket(
+                new ExtractedTicket.ExtractedStore("Cash Fresh", "B41544503", null),
+                "2026-05-16T21:23:38", "260516/219/104/0538", "EUR", ",", null, lines,
+                new ExtractedTotals(new BigDecimal("53.93"), breakdown));
+    }
+
     private ExtractedTicket mercadonaTicket(List<ExtractedLineItem> lines) {
         return new ExtractedTicket(
                 new ExtractedTicket.ExtractedStore("Mercadona", "A-46103834", null),
@@ -252,6 +360,14 @@ class ExtractionCheckEngineTest {
         return new ExtractedLineItem(qty + "x " + unit + "  " + total + " " + letter, desc,
                 BigDecimal.valueOf(qty), "unit", null, new BigDecimal(unit), "ud",
                 new BigDecimal(total), letter, false, null);
+    }
+
+    /** Línea a peso de Cash Fresh: el precio unitario es €/kg. */
+    private ExtractedLineItem cfWeight(String desc, String weight, String pricePerKg,
+                                       String total, String letter) {
+        return new ExtractedLineItem(weight + "x " + pricePerKg + "  " + total + " " + letter, desc,
+                BigDecimal.ONE, "weight", new ExtractedWeight(new BigDecimal(weight), "kg"),
+                new BigDecimal(pricePerKg), "kg", new BigDecimal(total), letter, false, null);
     }
 
     /** Línea de Mercadona a cantidad 1: sin precio unitario impreso, sin cobertura. */

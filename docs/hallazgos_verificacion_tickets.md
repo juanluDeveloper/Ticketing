@@ -77,12 +77,22 @@ no solo el checksum del total:
 |---|---|---|---|
 | C1 | Σ `line_total` == `total` | total impreso (los 3) | errores de importe |
 | C2 | `quantity × unit_price == line_total` (±0,01; ±0,02 si peso) | P.Unit impreso **en esa línea** | desalineamiento y cantidades mal leídas |
-| C3 | Σ `line_total` por letra / (1+tipo) == base impresa | letra de IVA por línea + tabla de bases (solo Cash Fresh) | desalineamiento precio↔letra |
+| C3 | Σ `line_total` por letra == base + cuota impresas de ese tipo | letra de IVA por línea + tabla de IVA (solo Cash Fresh) | desalineamiento precio↔letra |
 | C4 | Σ `quantity` == "N ART." | recuento de artículos (solo Xinya) | líneas perdidas o duplicadas |
 | C5 | Σ bases + Σ cuotas == `total` | tabla de IVA (los 3) | lectura mala de la tabla de IVA |
 
 C1 por sí solo **no detecta nada** de los fallos anteriores: la suma es la misma con las
 descripciones desplazadas. C2 y C3 sí. Semáforo por línea, no solo por ticket.
+
+**C3 compara contra base + cuota, no contra la base sola.** La base impresa no es
+`bruto / (1+tipo)`: el TPV redondea por línea y reparte el residuo entre base y cuota como
+le conviene. En el ticket de Cash Fresh de 53,93 € el bloque al 10 % suma 28,55 de bruto y
+el papel imprime base 25,97 y cuota 2,58 — y 25,97 × 10 % daría 2,60, así que las cifras
+del propio ticket no cumplen el tipo nominal. Dividiendo salía 25,95 y C3 marcaba en rojo
+una lectura perfecta. Lo que el TPV sí respeta siempre es que **base + cuota devuelve el
+bruto del bloque al céntimo**, que además es exactamente lo que se mueve cuando una línea
+lleva la letra equivocada. Si el desglose no trae cuota se vuelve a dividir, y entonces la
+tolerancia se ensancha medio céntimo por línea del bloque.
 
 ### Límite honesto: estas checks NO sustituyen la validación humana
 

@@ -24,10 +24,10 @@ public enum CheckCode {
     C2("Cantidad por precio unitario contra el importe de línea"),
 
     /**
-     * Σ importes agrupados por letra de IVA, divididos por (1+tipo), contra las
-     * bases impresas. Solo desambigua si el ticket mezcla letras.
+     * Σ importes agrupados por letra de IVA contra la base más la cuota impresas
+     * para ese tipo. Solo desambigua si el ticket mezcla letras.
      */
-    C3("Bases de IVA por letra impresa"),
+    C3("Importes por letra de IVA contra el desglose impreso"),
 
     /** Σ cantidades == recuento de artículos impreso. Detecta líneas perdidas, no reordenadas. */
     C4("Recuento de artículos"),

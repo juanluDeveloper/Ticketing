@@ -174,9 +174,28 @@ public class ExtractionCheckEngine {
     }
 
     // ------------------------------------------------------------------
-    // C3 — bases de IVA por letra impresa
+    // C3 — importes por letra de IVA contra el desglose impreso
     // ------------------------------------------------------------------
 
+    /**
+     * Compara el bruto de cada letra contra <em>base + cuota</em> impresas, no
+     * contra la base sola.
+     *
+     * <p>La base sola no vale porque el TPV no la calcula como
+     * {@code bruto / (1+tipo)}: redondea por línea y reparte el residuo entre
+     * base y cuota como le conviene. Un Cash Fresh real imprime al 10 % base
+     * 25,97 y cuota 2,58 para un bruto de 28,55, y 25,97 × 10 % son 2,60: sus
+     * propias cifras no cumplen el tipo nominal. Dividir daba 25,95 y la
+     * comprobación fallaba con la lectura perfecta.
+     *
+     * <p>Lo que el TPV sí respeta siempre es que base + cuota devuelve el bruto
+     * del bloque al céntimo, que además es justo lo que cambia cuando una línea
+     * lleva la letra equivocada. Así la tolerancia vuelve a servir para detectar
+     * errores en vez de gastarse en absorber el redondeo ajeno.
+     *
+     * <p>Si el desglose no trae cuota se cae al camino antiguo, y entonces hay
+     * que ensanchar la tolerancia con el residuo que cada línea puede aportar.
+     */
     private CheckReport.CheckOutcome checkTaxLetterBases(ExtractedTicket ticket,
                                                          List<ExtractedLineItem> lines,
                                                          Store store,
@@ -192,14 +211,15 @@ public class ExtractionCheckEngine {
                     "falta el desglose de IVA o los tipos por letra del súper");
         }
 
-        Map<String, BigDecimal> byLetter = new LinkedHashMap<>();
+        Map<String, LetterTotal> byLetter = new LinkedHashMap<>();
         int covered = 0;
         for (ExtractedLineItem line : lines) {
             if (line.taxLetter() == null || line.lineTotal() == null) {
                 continue;
             }
             covered++;
-            byLetter.merge(line.taxLetter().toUpperCase(), line.lineTotal(), BigDecimal::add);
+            byLetter.merge(line.taxLetter().toUpperCase(), new LetterTotal(line.lineTotal(), 1),
+                    LetterTotal::plus);
         }
         if (byLetter.isEmpty()) {
             return CheckReport.CheckOutcome.notApplicable(CheckCode.C3,
@@ -215,7 +235,7 @@ public class ExtractionCheckEngine {
 
         int failed = 0;
         StringBuilder detail = new StringBuilder();
-        for (Map.Entry<String, BigDecimal> entry : byLetter.entrySet()) {
+        for (Map.Entry<String, LetterTotal> entry : byLetter.entrySet()) {
             Optional<BigDecimal> rate = taxLetters.stream()
                     .filter(l -> l.getLetter().equalsIgnoreCase(entry.getKey()))
                     .map(StoreTaxLetter::getRate)
@@ -227,32 +247,54 @@ public class ExtractionCheckEngine {
                 continue;
             }
 
-            BigDecimal computedBase = entry.getValue()
-                    .divide(BigDecimal.ONE.add(rate.get()), 2, RoundingMode.HALF_UP);
-            Optional<BigDecimal> printedBase = breakdown.stream()
+            Optional<ExtractedTaxBreakdown> row = breakdown.stream()
                     .filter(b -> b.rate() != null && within(normalizeRate(b.rate()), rate.get(), new BigDecimal("0.0001")))
-                    .map(ExtractedTaxBreakdown::base)
                     .findFirst();
 
-            if (printedBase.isEmpty()) {
+            if (row.isEmpty() || row.get().base() == null) {
                 failed++;
                 findings.add(new CheckReport.LineFinding(null, CheckCode.C3, IssueSeverity.WARN,
                         "El desglose no trae ninguna base al " + rate.get() + " para la letra "
-                                + entry.getKey(), null, computedBase));
+                                + entry.getKey(), null, entry.getValue().sum()));
                 continue;
             }
 
-            boolean ok = within(computedBase, printedBase.get(), amountTolerance);
+            ExtractedTaxBreakdown printedRow = row.get();
+            boolean grossComparison = printedRow.tax() != null;
+
+            BigDecimal computed;
+            BigDecimal printed;
+            BigDecimal tolerance;
+            String magnitude;
+            if (grossComparison) {
+                computed = entry.getValue().sum();
+                printed = printedRow.base().add(printedRow.tax());
+                tolerance = amountTolerance;
+                magnitude = "de bruto";
+            } else {
+                computed = entry.getValue().sum()
+                        .divide(BigDecimal.ONE.add(rate.get()), 2, RoundingMode.HALF_UP);
+                printed = printedRow.base();
+                // Medio céntimo por línea: el redondeo que el TPV puede haberse
+                // guardado en cada una y que aquí no hay cuota con la que anular.
+                tolerance = amountTolerance.add(new BigDecimal("0.005")
+                        .multiply(BigDecimal.valueOf(entry.getValue().lines())));
+                magnitude = "de base";
+            }
+
+            boolean ok = within(computed, printed, tolerance);
             if (!ok) {
                 failed++;
                 findings.add(new CheckReport.LineFinding(null, CheckCode.C3, IssueSeverity.ERROR,
-                        "Las líneas con letra " + entry.getKey() + " suman una base de "
-                                + scale2(computedBase) + " y el ticket imprime "
-                                + scale2(printedBase.get()) + ". Alguna línea tiene la letra "
-                                + "equivocada, que es el síntoma del desplazamiento de columnas.",
-                        printedBase.get(), computedBase));
+                        "Las líneas con letra " + entry.getKey() + " suman " + scale2(computed)
+                                + " " + magnitude + " y el ticket imprime " + scale2(printed)
+                                + ". Alguna línea tiene la letra equivocada, que es el síntoma "
+                                + "del desplazamiento de columnas.",
+                        printed, computed));
             }
-            detail.append(entry.getKey()).append("=").append(scale2(computedBase))
+            detail.append(entry.getKey()).append("=").append(scale2(computed))
+                    .append(" contra ").append(scale2(printed))
+                    .append(grossComparison ? "" : " (el desglose no trae cuota)")
                     .append(ok ? " ok; " : " FALLA; ");
         }
 
@@ -415,6 +457,17 @@ public class ExtractionCheckEngine {
     }
 
     // ------------------------------------------------------------------
+
+    /**
+     * Bruto acumulado de una letra y cuántas líneas lo forman. El recuento solo
+     * hace falta para dimensionar la tolerancia cuando C3 no puede comparar
+     * contra base + cuota.
+     */
+    private record LetterTotal(BigDecimal sum, int lines) {
+        LetterTotal plus(LetterTotal other) {
+            return new LetterTotal(sum.add(other.sum()), lines + other.lines());
+        }
+    }
 
     private List<ExtractedTaxBreakdown> breakdownOf(ExtractedTicket ticket) {
         if (ticket.totals() == null || ticket.totals().taxBreakdown() == null) {
