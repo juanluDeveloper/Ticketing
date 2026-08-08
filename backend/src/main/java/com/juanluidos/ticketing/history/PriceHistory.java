@@ -28,7 +28,15 @@ public record PriceHistory(
             String notes,
             BigDecimal packageSize,
             String packageUnit,
-            String soldBy
+            String soldBy,
+            /**
+             * Precio del mostrador tecleado a mano, ya en unidad canónica. No
+             * forma parte de la serie —no sale de ningún ticket— pero la ficha
+             * lo enseña y el comparador lo usa como respaldo.
+             */
+            BigDecimal declaredUnitPrice,
+            String declaredUnit,
+            LocalDate declaredAt
     ) {
     }
 

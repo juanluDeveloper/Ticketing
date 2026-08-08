@@ -47,7 +47,13 @@ public record GroupComparison(
             boolean preferred,
             /** Precio menos la prima. Solo se calcula para el preferido. */
             BigDecimal adjustedPrice,
-            String notComparableReason
+            String notComparableReason,
+            /**
+             * El precio no sale de un ticket: lo tecleó una persona leyendo el
+             * mostrador. Se marca siempre en la interfaz, porque un precio
+             * declarado y uno medido no merecen la misma confianza.
+             */
+            boolean declared
     ) {
     }
 

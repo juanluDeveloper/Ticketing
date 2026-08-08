@@ -201,6 +201,9 @@ public class ProductHistoryService {
                 product.getNotes(),
                 product.getPackageSize(),
                 product.getPackageUnit(),
-                product.getSoldBy() == null ? null : product.getSoldBy().name());
+                product.getSoldBy() == null ? null : product.getSoldBy().name(),
+                product.getDeclaredUnitPrice(),
+                product.getDeclaredUnit(),
+                product.getDeclaredAt() == null ? null : product.getDeclaredAt().toLocalDate());
     }
 }

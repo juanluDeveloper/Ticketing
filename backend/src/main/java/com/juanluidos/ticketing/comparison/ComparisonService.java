@@ -65,10 +65,14 @@ public class ComparisonService {
             boolean preferred = member.getId().equals(preferredId);
             Optional<PriceObservation> latest = latestUsableObservation(member);
 
-            if (latest.isEmpty()) {
-                notComparable.add(notComparableEntry(member, preferred));
-            } else {
+            if (latest.isPresent()) {
                 comparable.add(comparableEntry(member, latest.get(), preferred, preference));
+            } else if (member.getDeclaredUnitPrice() != null) {
+                // Respaldo, nunca preferencia: un precio medido en un ticket gana
+                // siempre a uno tecleado, aunque el tecleado sea más reciente.
+                comparable.add(declaredEntry(member, preferred, preference));
+            } else {
+                notComparable.add(notComparableEntry(member, preferred));
             }
         }
 
@@ -118,7 +122,39 @@ public class ComparisonService {
                 observation.isPromo(),
                 preferred,
                 adjusted,
-                null);
+                null,
+                false);
+    }
+
+    /**
+     * Entrada a partir del precio del mostrador tecleado a mano. Se comporta
+     * como cualquier otra —entra en el ranking, envejece, admite prima— pero
+     * viaja marcada como declarada para que la interfaz no la disfrace de dato
+     * medido.
+     */
+    private GroupComparison.Entry declaredEntry(StoreProduct product, boolean preferred,
+                                                Optional<UserProductPreference> preference) {
+        LocalDate declaredAt = product.getDeclaredAt().toLocalDate();
+        BigDecimal price = product.getDeclaredUnitPrice();
+
+        BigDecimal adjusted = preferred
+                ? preference.map(p -> applyMargin(price, p)).orElse(null)
+                : null;
+
+        return new GroupComparison.Entry(
+                product.getId(),
+                product.getStore().getCode(),
+                product.getStore().getName(),
+                displayName(product),
+                price,
+                product.getDeclaredUnit(),
+                declaredAt,
+                (int) ChronoUnit.DAYS.between(declaredAt, LocalDate.now()),
+                false,
+                preferred,
+                adjusted,
+                null,
+                true);
     }
 
     private GroupComparison.Entry notComparableEntry(StoreProduct product, boolean preferred) {
@@ -128,7 +164,8 @@ public class ComparisonService {
                 product.getStore().getName(),
                 displayName(product),
                 null, null, null, null, false, preferred, null,
-                notComparableReason(product));
+                notComparableReason(product),
+                false);
     }
 
     /** Decir cuál de los tres motivos es, porque dos de ellos se arreglan. */
@@ -142,7 +179,8 @@ public class ComparisonService {
         }
         if (product.getSoldBy() == SoldBy.VARIABLE_PIECE) {
             return "Pieza de peso variable: el ticket no imprime peso ni precio por kilo, "
-                    + "así que no se puede pasar a precio por unidad.";
+                    + "así que no se puede pasar a precio por unidad. Si conoces el precio del "
+                    + "mostrador, decláralo a mano en el producto y entra en la comparación.";
         }
         if (product.getPackageSize() == null || product.getPackageUnit() == null) {
             return "Falta el tamaño del envase. Ponlo una vez y entra en la comparación con "
@@ -239,6 +277,13 @@ public class ComparisonService {
 
         if (comparable.size() == 1) {
             notes.add("Solo hay precio en un súper, así que esto no es una comparación todavía.");
+        }
+        long declared = comparable.stream().filter(GroupComparison.Entry::declared).count();
+        if (declared > 0) {
+            notes.add(declared + (declared == 1 ? " precio del ranking no sale" : " precios del ranking no salen")
+                    + " de un ticket: " + (declared == 1 ? "lo tecleaste" : "los tecleaste")
+                    + " a mano leyendo el mostrador, y solo " + (declared == 1 ? "envejece" : "envejecen")
+                    + " si vuelves a mirarlo.");
         }
         if (!notComparable.isEmpty()) {
             notes.add(notComparable.size() + " producto" + (notComparable.size() == 1 ? "" : "s")

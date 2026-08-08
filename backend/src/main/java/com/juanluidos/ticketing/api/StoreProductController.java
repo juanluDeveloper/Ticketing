@@ -56,7 +56,11 @@ public class StoreProductController {
             BigDecimal packageSize,
             String packageUnit,
             /** PACKAGE, WEIGHT o VARIABLE_PIECE. Null lo deja como está. */
-            String soldBy
+            String soldBy,
+            /** Precio del mostrador, tecleado a mano. Solo para el comparador. */
+            BigDecimal declaredUnitPrice,
+            /** La unidad de ese precio tal cual se teclee: kg, g, L, ml, cl o ud. */
+            String declaredUnit
     ) {
     }
 
@@ -94,6 +98,7 @@ public class StoreProductController {
         product.setPackageSize(size);
         product.setPackageUnit(unit == null ? null : unit.trim());
         product.setSoldBy(soldBy);
+        applyDeclaredPrice(product, update);
         products.save(product);
 
         if (affectsPrices) {
@@ -115,6 +120,54 @@ public class StoreProductController {
             normalizer.reapply(observation, product);
         }
         observations.saveAll(all);
+    }
+
+    /**
+     * El precio declarado se guarda en unidad canónica: si se teclea en €/g, lo
+     * que se compara luego son €/kg, y hacer la conversión aquí evita que el
+     * ranking tenga que adivinar en qué unidad está cada miembro.
+     *
+     * <p>La fecha solo se mueve cuando el precio cambia de verdad. Guardar el
+     * producto para corregir una nota no puede rejuvenecer un precio que sigue
+     * siendo el mismo de hace medio año: esa fecha es lo que hace que el aviso
+     * de calidad del dato signifique algo.
+     */
+    private void applyDeclaredPrice(StoreProduct product, ProductUpdate update) {
+        BigDecimal price = update.declaredUnitPrice();
+        String unit = blankToNull(update.declaredUnit());
+
+        if (price == null && unit == null) {
+            product.setDeclaredUnitPrice(null);
+            product.setDeclaredUnit(null);
+            product.setDeclaredAt(null);
+            return;
+        }
+        if (price == null || unit == null) {
+            throw new IllegalArgumentException(
+                    "El precio declarado necesita importe y unidad: \"15\" y \"kg\", por ejemplo.");
+        }
+        if (price.signum() <= 0) {
+            throw new IllegalArgumentException("El precio declarado tiene que ser mayor que cero.");
+        }
+
+        // €/g -> €/kg es dividir entre el factor, no multiplicarlo: un gramo es
+        // la milésima parte de un kilo, así que el kilo cuesta mil veces más.
+        BigDecimal factor = UnitConverter.toCanonical(BigDecimal.ONE, unit)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Unidad no reconocida para el precio declarado: \"" + unit
+                                + "\". Se admiten kg, g, L, ml, cl y ud."));
+        String canonicalUnit = UnitConverter.dimensionOf(unit).orElseThrow().getCanonicalUnit();
+        BigDecimal canonicalPrice = price.divide(factor, 4, java.math.RoundingMode.HALF_UP);
+
+        boolean changed = product.getDeclaredUnitPrice() == null
+                || canonicalPrice.compareTo(product.getDeclaredUnitPrice()) != 0
+                || !canonicalUnit.equals(product.getDeclaredUnit());
+
+        product.setDeclaredUnitPrice(canonicalPrice);
+        product.setDeclaredUnit(canonicalUnit);
+        if (changed || product.getDeclaredAt() == null) {
+            product.setDeclaredAt(java.time.LocalDateTime.now());
+        }
     }
 
     private SoldBy parseSoldBy(String raw, SoldBy current) {

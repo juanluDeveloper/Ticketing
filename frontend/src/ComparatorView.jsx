@@ -286,7 +286,11 @@ function GroupDetail({ id, onClose }) {
                   {r.preferred && <span className="badge extracted">preferido</span>}
                 </td>
                 <td className="right">
-                  {fmt(r.normalizedUnitPrice)} €/{r.unit}
+                  {fmt(r.normalizedUnitPrice)} €/{r.unit}{' '}
+                  {/* Un precio tecleado y uno medido en un ticket no merecen la
+                      misma confianza, y la diferencia tiene que verse en la
+                      propia fila, no en una nota al pie. */}
+                  {r.declared && <span className="badge extracted">declarado</span>}
                 </td>
                 <td className="right">
                   <Difference price={r.normalizedUnitPrice} cheapest={cheapest} unit={r.unit} />
@@ -296,6 +300,7 @@ function GroupDetail({ id, onClose }) {
                 </td>
                 <td className="muted">
                   {fmtDate(r.observedAt)} · {ageLabel(r.ageDays)}
+                  {r.declared && <span className="small"> (leído en el mostrador)</span>}
                 </td>
                 <td>
                   <RemoveButton

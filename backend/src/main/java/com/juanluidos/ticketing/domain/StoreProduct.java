@@ -74,6 +74,26 @@ public class StoreProduct {
     @Column(name = "usual_tax_letter", length = 1)
     private String usualTaxLetter;
 
+    /**
+     * Precio por unidad leído en el mostrador, para los productos cuyo ticket
+     * nunca dará lo suficiente para calcularlo: el tubo de pota imprime nombre e
+     * importe, sin peso y sin €/kg.
+     *
+     * <p>No es una observación de precio. No sale de un ticket, no entra en la
+     * serie del histórico y no cuenta subidas: solo lo usa el comparador como
+     * respaldo, etiquetado como declarado. Ya viene en unidad canónica.
+     */
+    @Column(name = "declared_unit_price", precision = 12, scale = 4)
+    private BigDecimal declaredUnitPrice;
+
+    /** kg, L o ud. */
+    @Column(name = "declared_unit", length = 10)
+    private String declaredUnit;
+
+    /** Cuándo se leyó ese precio, que es lo que lo deja envejecer como los demás. */
+    @Column(name = "declared_at")
+    private LocalDateTime declaredAt;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 }

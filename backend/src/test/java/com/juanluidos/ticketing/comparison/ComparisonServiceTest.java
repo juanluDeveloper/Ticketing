@@ -102,6 +102,75 @@ class ComparisonServiceTest {
     }
 
     // ------------------------------------------------------------------
+    // Precio declarado a mano: el tubo de pota y sus excepciones
+    // ------------------------------------------------------------------
+
+    /**
+     * Hay productos cuyo ticket no permite calcular el precio por unidad nunca:
+     * el tubo de pota sale con nombre e importe, sin peso y sin €/kg. Sin el
+     * precio declarado quedan fuera del comparador para siempre.
+     */
+    @Test
+    void aDeclaredPriceLetsAnUnmeasurableProductEnterTheRanking() {
+        product("MERCADONA", "Mercadona", "LECHE FRESCA", price("1.15", 5));
+        declared(variablePiece("XINYA", "Xinya", "TUBO DE POTA", unnormalizedPrice("1.82", 6)),
+                "0.99", "L", 10);
+
+        GroupComparison c = compare();
+
+        assertThat(c.notComparable()).isEmpty();
+        assertThat(c.ranking()).extracting(GroupComparison.Entry::storeCode)
+                .containsExactly("XINYA", "MERCADONA");
+        assertThat(c.ranking().getFirst().declared()).isTrue();
+        assertThat(c.ranking().getLast().declared()).isFalse();
+    }
+
+    /** El precio declarado envejece como cualquier otro: lleva su fecha. */
+    @Test
+    void aDeclaredPriceCarriesTheDayItWasRead() {
+        declared(variablePiece("XINYA", "Xinya", "TUBO DE POTA"), "15.00", "kg", 12);
+
+        assertThat(compare().ranking().getFirst().ageDays()).isEqualTo(12);
+    }
+
+    /** Un precio medido en un ticket gana siempre al tecleado, aunque sea más viejo. */
+    @Test
+    void aMeasuredPriceBeatsTheDeclaredOne() {
+        StoreProduct product = product("MERCADONA", "Mercadona", "LECHE FRESCA", price("1.15", 200));
+        product.setDeclaredUnitPrice(new BigDecimal("0.50"));
+        product.setDeclaredUnit("L");
+        product.setDeclaredAt(LocalDateTime.now());
+
+        GroupComparison c = compare();
+
+        assertThat(c.ranking().getFirst().normalizedUnitPrice()).isEqualByComparingTo("1.15");
+        assertThat(c.ranking().getFirst().declared()).isFalse();
+    }
+
+    /** Y se dice en el aviso de calidad, que para eso está. */
+    @Test
+    void theDataWarningSaysWhenAPriceWasTypedByHand() {
+        product("MERCADONA", "Mercadona", "LECHE FRESCA", price("1.15", 5));
+        declared(variablePiece("XINYA", "Xinya", "TUBO DE POTA"), "0.99", "L", 3);
+
+        assertThat(compare().dataWarning()).contains("no sale de un ticket");
+    }
+
+    /** Sin precio declarado, la pieza variable sigue fuera y con su motivo. */
+    @Test
+    void withoutADeclaredPriceTheVariablePieceStaysOut() {
+        product("MERCADONA", "Mercadona", "LECHE FRESCA", price("1.15", 5));
+        variablePiece("XINYA", "Xinya", "TUBO DE POTA", unnormalizedPrice("1.82", 6));
+
+        GroupComparison c = compare();
+
+        assertThat(c.ranking()).hasSize(1);
+        assertThat(c.notComparable()).hasSize(1);
+        assertThat(c.notComparable().getFirst().notComparableReason())
+                .contains("decláralo a mano");
+    }
+
+    // ------------------------------------------------------------------
     // Lo que NO se puede comparar se aparta y se explica
     // ------------------------------------------------------------------
 
@@ -292,6 +361,25 @@ class ComparisonServiceTest {
         series.put(product.getId(), List.of(prices));
         when(products.findById(product.getId())).thenReturn(Optional.of(product));
         return product;
+    }
+
+    /**
+     * Pieza de peso variable comprada ahí, pero sin precio normalizable: el
+     * tubo de pota, que el ticket imprime con nombre e importe y nada más.
+     */
+    private StoreProduct variablePiece(String storeCode, String storeName, String name,
+                                       PriceObservation... prices) {
+        StoreProduct product = product(storeCode, storeName, name, prices);
+        product.setSoldBy(SoldBy.VARIABLE_PIECE);
+        product.setPackageSize(null);
+        product.setPackageUnit(null);
+        return product;
+    }
+
+    private void declared(StoreProduct product, String price, String unit, int daysAgo) {
+        product.setDeclaredUnitPrice(new BigDecimal(price));
+        product.setDeclaredUnit(unit);
+        product.setDeclaredAt(LocalDateTime.now().minusDays(daysAgo));
     }
 
     private void preference(StoreProduct preferred, MarginType type, String value) {

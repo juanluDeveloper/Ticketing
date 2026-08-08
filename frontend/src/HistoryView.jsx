@@ -235,6 +235,21 @@ function ProductHistory({ id, onClose }) {
 
       {product.notes && <p className="notes">{product.notes}</p>}
 
+      {/* Se enseña aparte de las métricas y con la etiqueta puesta: no es un
+          precio medido y no debe leerse como si lo fuera. */}
+      {product.declaredUnitPrice != null && (
+        <p className="declaredline">
+          <span className="badge extracted">declarado</span> Precio del mostrador:{' '}
+          <strong>
+            {fmt(product.declaredUnitPrice)} €/{product.declaredUnit}
+          </strong>
+          <span className="muted small">
+            {' '}
+            · lo tecleaste el {fmtDate(product.declaredAt)} · solo lo usa el comparador
+          </span>
+        </p>
+      )}
+
       {/* El aviso lleva al sitio donde se arregla. Antes decía "ponlo una vez en
           el producto" y no había dónde ponerlo: el tamaño solo se podía teclear
           al crear el producto desde un ticket. */}
@@ -418,6 +433,10 @@ function SizePreview({ soldBy, packageSize, packageUnit, lastPricePerPiece }) {
 
 function ProductForm({ product, purchaseCount, lastPricePerPiece, onCancel, onSaved }) {
   const [soldBy, setSoldBy] = useState(product.soldBy ?? 'PACKAGE')
+  const [declaredPrice, setDeclaredPrice] = useState(
+    product.declaredUnitPrice == null ? '' : String(product.declaredUnitPrice).replace('.', ','),
+  )
+  const [declaredUnit, setDeclaredUnit] = useState(product.declaredUnit ?? '')
   const [displayName, setDisplayName] = useState(product.displayName ?? '')
   const [packageSize, setPackageSize] = useState(
     product.packageSize == null ? '' : String(product.packageSize).replace('.', ','),
@@ -438,6 +457,8 @@ function ProductForm({ product, purchaseCount, lastPricePerPiece, onCancel, onSa
           packageSize: packageSize === '' ? null : Number(packageSize.replace(',', '.')),
           packageUnit: packageUnit || null,
           soldBy,
+          declaredUnitPrice: declaredPrice === '' ? null : Number(declaredPrice.replace(',', '.')),
+          declaredUnit: declaredUnit || null,
         }),
       )
     } catch (e) {
@@ -506,6 +527,39 @@ function ProductForm({ product, purchaseCount, lastPricePerPiece, onCancel, onSa
           verdad —una lechuga, un bote de lavavajillas— y teclearlo es fricción.
           Ponerlo solo, en cambio, haría que el comparador enfrentase precios por
           envase creyendo que son por litro. */}
+      {/* El precio del mostrador, para lo que el ticket no permitirá calcular
+          nunca. Va abajo y aparte a propósito: es la salida de emergencia, no
+          la vía normal. Rellenarlo pudiendo medir sería cambiar un dato real
+          por uno recordado. */}
+      <div className="declared">
+        <label>
+          Precio del mostrador
+          <input
+            className="num"
+            value={declaredPrice}
+            onChange={(e) => setDeclaredPrice(e.target.value)}
+            placeholder="15"
+            inputMode="decimal"
+          />
+        </label>
+        <label>
+          Por
+          <input
+            value={declaredUnit}
+            onChange={(e) => setDeclaredUnit(e.target.value)}
+            placeholder="kg"
+            list="unidades-envase"
+          />
+        </label>
+        <p className="muted small">
+          Solo para lo que el ticket no permite calcular nunca, como el tubo de pota: nombre e
+          importe, sin peso ni precio por kilo. Lo tecleas leyendo el cartel y{' '}
+          <strong>solo lo usa el comparador</strong>, marcado como declarado y con la fecha de
+          hoy. No entra en la serie de precios ni cuenta subidas: eso solo lo hacen los tickets.
+          {product.declaredAt && ` Ahora mismo declarado el ${fmtDate(product.declaredAt)}.`}
+        </p>
+      </div>
+
       {/* La cuenta hecha delante, antes de guardar. El campo dice "tamaño" y se
           lee como "precio": alguien que escriba 15 kg pensando en 15 €/kg ve
           aquí que su tubo saldría a doce céntimos el kilo y se corrige solo. */}

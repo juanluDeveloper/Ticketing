@@ -235,6 +235,12 @@ th.right,td.right{text-align:right}
 .actions.tight{padding:var(--sp-4) 0 0}
 .unithint{grid-column:1/-1;margin:0;text-wrap:pretty}
 
+/* La salida de emergencia va separada del resto del formulario: se usa cuando
+   el ticket no da para más, no como atajo para no teclear el envase. */
+.declared{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:var(--sp-5);padding:var(--sp-5) 0 0;border-top:1px solid var(--border-subtle)}
+.declared > p{grid-column:1/-1;margin:0;text-wrap:pretty}
+.declaredline{display:flex;gap:var(--sp-4);align-items:baseline;flex-wrap:wrap;background:var(--info-bg);border-radius:var(--r-xs);padding:var(--sp-4) var(--sp-5);margin:var(--sp-5) 0;font:var(--type-body-sm)}
+
 .chartbox{margin:var(--sp-7) 0;display:grid;gap:var(--sp-4)}
 .chartbox figcaption{font:var(--type-label);color:var(--text-strong);text-wrap:pretty}
 .chart .grid{stroke:var(--border-subtle)}
