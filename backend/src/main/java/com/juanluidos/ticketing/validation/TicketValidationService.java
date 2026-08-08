@@ -38,6 +38,7 @@ public class TicketValidationService {
     private final StoreTaxLetterRepository taxLetters;
     private final ExtractionCheckEngine checkEngine;
     private final ProductMatcher matcher;
+    private final PriceNormalizer normalizer;
 
     public TicketValidationService(TicketRepository tickets, LineItemRepository lineItems,
                                   TicketTaxSummaryRepository taxSummaries,
@@ -46,7 +47,8 @@ public class TicketValidationService {
                                   PriceObservationRepository observations,
                                   StoreProductRepository products, CategoryRepository categories,
                                   StoreTaxLetterRepository taxLetters,
-                                  ExtractionCheckEngine checkEngine, ProductMatcher matcher) {
+                                  ExtractionCheckEngine checkEngine, ProductMatcher matcher,
+                                  PriceNormalizer normalizer) {
         this.tickets = tickets;
         this.lineItems = lineItems;
         this.taxSummaries = taxSummaries;
@@ -58,6 +60,7 @@ public class TicketValidationService {
         this.taxLetters = taxLetters;
         this.checkEngine = checkEngine;
         this.matcher = matcher;
+        this.normalizer = normalizer;
     }
 
     @Transactional
@@ -303,10 +306,12 @@ public class TicketValidationService {
         observation.setPricePerPiece(line.getLineTotal().divide(quantity, 4, RoundingMode.HALF_UP));
         observation.setPromo(line.isPromo());
 
-        normalize(line, product, soldBy, quantity).ifPresent(normalized -> {
-            observation.setNormalizedUnitPrice(normalized.price());
-            observation.setNormalizedUnit(normalized.unit());
-        });
+        normalizer.of(line.getLineTotal(), quantity, soldBy,
+                        line.getWeightValue(), line.getWeightUnit(), product)
+                .ifPresent(normalized -> {
+                    observation.setNormalizedUnitPrice(normalized.price());
+                    observation.setNormalizedUnit(normalized.unit());
+                });
 
         // Una pieza de peso variable cambia de precio porque cambia de peso, no
         // porque haya subido: cuenta como precio pagado, no como serie de precios.
@@ -314,36 +319,5 @@ public class TicketValidationService {
         observation.setCountsForIncrease(
                 normalizable && !line.isPromo() && soldBy != SoldBy.VARIABLE_PIECE);
         return observation;
-    }
-
-    private record Normalized(BigDecimal price, String unit) {
-    }
-
-    private Optional<Normalized> normalize(LineItem line, StoreProduct product,
-                                           SoldBy soldBy, BigDecimal quantity) {
-        if (soldBy == SoldBy.VARIABLE_PIECE) {
-            // Sin peso ni precio por kilo en el ticket no hay nada que normalizar.
-            return Optional.empty();
-        }
-
-        if (soldBy == SoldBy.WEIGHT && line.getWeightValue() != null) {
-            return UnitConverter.toCanonical(line.getWeightValue(), line.getWeightUnit())
-                    .filter(base -> base.signum() > 0)
-                    .map(base -> new Normalized(
-                            line.getLineTotal().divide(base, 6, RoundingMode.HALF_UP),
-                            Dimension.WEIGHT.getCanonicalUnit()));
-        }
-
-        if (product.getPackageSize() == null || product.getPackageUnit() == null) {
-            // El tamaño del envase se teclea una vez por producto; hasta que
-            // esté, el precio no es comparable entre súper.
-            return Optional.empty();
-        }
-        return UnitConverter.toCanonical(product.getPackageSize(), product.getPackageUnit())
-                .filter(size -> size.signum() > 0)
-                .flatMap(size -> UnitConverter.dimensionOf(product.getPackageUnit())
-                        .map(dimension -> new Normalized(
-                                line.getLineTotal().divide(quantity.multiply(size), 6, RoundingMode.HALF_UP),
-                                dimension.getCanonicalUnit())));
     }
 }

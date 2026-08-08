@@ -205,6 +205,7 @@ function Sparkline({ series }) {
 function ProductHistory({ id, onClose }) {
   const [history, setHistory] = useState(null)
   const [error, setError] = useState(null)
+  const [editing, setEditing] = useState(false)
 
   useEffect(() => {
     api.productHistory(id).then(setHistory).catch((e) => setError(e.message))
@@ -233,7 +234,38 @@ function ProductHistory({ id, onClose }) {
       </div>
 
       {product.notes && <p className="notes">{product.notes}</p>}
-      {notComparableReason && <p className="warn strong">{notComparableReason}</p>}
+
+      {/* El aviso lleva al sitio donde se arregla. Antes decía "ponlo una vez en
+          el producto" y no había dónde ponerlo: el tamaño solo se podía teclear
+          al crear el producto desde un ticket. */}
+      {notComparableReason && (
+        <div className="warn strong actionable">
+          <span>{notComparableReason}</span>
+          {!editing && (
+            <button onClick={() => setEditing(true)}>Poner el tamaño del envase</button>
+          )}
+        </div>
+      )}
+
+      {!notComparableReason && !editing && (
+        <div className="actions tight">
+          <button className="link" onClick={() => setEditing(true)}>
+            Editar producto
+          </button>
+        </div>
+      )}
+
+      {editing && (
+        <ProductForm
+          product={product}
+          purchaseCount={metrics.purchaseCount}
+          onCancel={() => setEditing(false)}
+          onSaved={(updated) => {
+            setHistory(updated)
+            setEditing(false)
+          }}
+        />
+      )}
 
       {/* Una cifra manda y el resto acompaña. Antes las ocho pesaban igual y el
           precio de hoy competía con el gasto acumulado. */}
@@ -318,6 +350,103 @@ function ProductHistory({ id, onClose }) {
         </tbody>
       </table>
     </section>
+  )
+}
+
+/**
+ * El tamaño del envase es el campo que desbloquea todo lo demás: sin él no hay
+ * €/L, sin €/L no hay serie ni comparación. Se teclea una vez por producto y
+ * las compras ya registradas se recalculan solas en el servidor.
+ */
+function ProductForm({ product, purchaseCount, onCancel, onSaved }) {
+  const [displayName, setDisplayName] = useState(product.displayName ?? '')
+  const [packageSize, setPackageSize] = useState(
+    product.packageSize == null ? '' : String(product.packageSize).replace('.', ','),
+  )
+  const [packageUnit, setPackageUnit] = useState(product.packageUnit ?? '')
+  const [notes, setNotes] = useState(product.notes ?? '')
+  const [error, setError] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  async function save() {
+    setBusy(true)
+    setError(null)
+    try {
+      onSaved(
+        await api.updateProduct(product.id, {
+          displayName: displayName || null,
+          notes: notes || null,
+          packageSize: packageSize === '' ? null : Number(packageSize.replace(',', '.')),
+          packageUnit: packageUnit || null,
+        }),
+      )
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="newproduct">
+      <label>
+        Nombre mostrado
+        <input
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder={product.canonicalName}
+        />
+      </label>
+      <label>
+        Tamaño del envase
+        <input
+          className="num"
+          value={packageSize}
+          onChange={(e) => setPackageSize(e.target.value)}
+          placeholder="1"
+          inputMode="decimal"
+        />
+      </label>
+      <label>
+        Unidad
+        <input
+          value={packageUnit}
+          onChange={(e) => setPackageUnit(e.target.value)}
+          placeholder="L"
+          list="unidades-envase"
+        />
+        <datalist id="unidades-envase">
+          {['kg', 'g', 'L', 'ml', 'cl', 'ud'].map((u) => (
+            <option key={u} value={u} />
+          ))}
+        </datalist>
+      </label>
+      <label>
+        Notas
+        <input
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="西柚 = pomelo"
+        />
+      </label>
+      <p className="muted small">
+        El envase va con número y unidad: «1» y «L» para un brik de litro, «400» y «g» para un
+        bote de 400 gramos. Al guardarlo,{' '}
+        {purchaseCount === 1
+          ? 'la compra ya registrada se recalcula y entra en la serie'
+          : `las ${purchaseCount} compras ya registradas se recalculan y entran en la serie`}
+        . El nombre del ticket no se toca: es con lo que empareja el emparejador.
+      </p>
+      {error && <p className="error">{error}</p>}
+      <div className="pickeractions">
+        <button className="primary" onClick={save} disabled={busy}>
+          {busy ? 'Guardando…' : 'Guardar'}
+        </button>
+        <button className="link" onClick={onCancel} disabled={busy}>
+          Cancelar
+        </button>
+      </div>
+    </div>
   )
 }
 

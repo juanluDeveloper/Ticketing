@@ -74,6 +74,9 @@ export const api = {
   categories: () => request('/categories'),
   products: (storeId) => request(`/products${storeId ? `?storeId=${storeId}` : ''}`),
   productHistory: (id) => request(`/products/${id}/history`),
+  // Devuelve el histórico ya recalculado: cambiar el tamaño del envase rehace
+  // las compras anteriores, así que la respuesta trae la serie nueva.
+  updateProduct: (id, body) => request(`/products/${id}`, { method: 'PATCH', body }),
 
   groups: () => request('/groups'),
   createGroup: (body) => request('/groups', { method: 'POST', body }),
