@@ -429,6 +429,30 @@ function ProductForm({ product, purchaseCount, onCancel, onSaved }) {
           placeholder="西柚 = pomelo"
         />
       </label>
+
+      {/* Atajo, no valor por defecto. Hay productos donde "una unidad" es la
+          verdad —una lechuga, un bote de lavavajillas— y teclearlo es fricción.
+          Ponerlo solo, en cambio, haría que el comparador enfrentase precios por
+          envase creyendo que son por litro. */}
+      {packageSize === '' && (
+        <p className="unithint">
+          <button
+            className="link"
+            onClick={() => {
+              setPackageSize('1')
+              setPackageUnit('ud')
+            }}
+          >
+            Es una unidad
+          </button>
+          <span className="muted small">
+            {' '}
+            — para lo que se compra de uno en uno y no se mide. Si el producto viene en litros o
+            en gramos, escribe el tamaño de verdad: comparar briks de tamaños distintos como si
+            fueran «uno» da el más barato al revés.
+          </span>
+        </p>
+      )}
       <p className="muted small">
         El envase va con número y unidad: «1» y «L» para un brik de litro, «400» y «g» para un
         bote de 400 gramos. Al guardarlo,{' '}

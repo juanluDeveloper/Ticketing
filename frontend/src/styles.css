@@ -233,6 +233,7 @@ th.right,td.right{text-align:right}
 .warn.strong.actionable{display:flex;gap:var(--sp-6);align-items:center;flex-wrap:wrap}
 .warn.strong.actionable > span{flex:1;min-width:20rem}
 .actions.tight{padding:var(--sp-4) 0 0}
+.unithint{grid-column:1/-1;margin:0;text-wrap:pretty}
 
 .chartbox{margin:var(--sp-7) 0;display:grid;gap:var(--sp-4)}
 .chartbox figcaption{font:var(--type-label);color:var(--text-strong);text-wrap:pretty}
