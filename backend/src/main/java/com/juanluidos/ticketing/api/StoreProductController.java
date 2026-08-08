@@ -1,6 +1,7 @@
 package com.juanluidos.ticketing.api;
 
 import com.juanluidos.ticketing.domain.PriceObservation;
+import com.juanluidos.ticketing.domain.SoldBy;
 import com.juanluidos.ticketing.domain.StoreProduct;
 import com.juanluidos.ticketing.history.PriceHistory;
 import com.juanluidos.ticketing.history.ProductHistoryService;
@@ -53,7 +54,9 @@ public class StoreProductController {
             String displayName,
             String notes,
             BigDecimal packageSize,
-            String packageUnit
+            String packageUnit,
+            /** PACKAGE, WEIGHT o VARIABLE_PIECE. Null lo deja como está. */
+            String soldBy
     ) {
     }
 
@@ -80,16 +83,20 @@ public class StoreProductController {
                     "El tamaño del envase necesita número y unidad: \"1\" y \"L\", por ejemplo.");
         }
 
-        boolean sizeChanged = !Objects.equals(product.getPackageSize(), size)
-                || !Objects.equals(product.getPackageUnit(), unit);
+        SoldBy soldBy = parseSoldBy(update.soldBy(), product.getSoldBy());
+
+        boolean affectsPrices = !Objects.equals(product.getPackageSize(), size)
+                || !Objects.equals(product.getPackageUnit(), unit)
+                || soldBy != product.getSoldBy();
 
         product.setDisplayName(blankToNull(update.displayName()));
         product.setNotes(blankToNull(update.notes()));
         product.setPackageSize(size);
         product.setPackageUnit(unit == null ? null : unit.trim());
+        product.setSoldBy(soldBy);
         products.save(product);
 
-        if (sizeChanged) {
+        if (affectsPrices) {
             recalculate(product);
         }
         return history.of(id);
@@ -108,6 +115,17 @@ public class StoreProductController {
             normalizer.reapply(observation, product);
         }
         observations.saveAll(all);
+    }
+
+    private SoldBy parseSoldBy(String raw, SoldBy current) {
+        if (blankToNull(raw) == null) {
+            return current;
+        }
+        try {
+            return SoldBy.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Tipo de venta desconocido: \"" + raw + "\".");
+        }
     }
 
     private String blankToNull(String value) {

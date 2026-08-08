@@ -358,7 +358,14 @@ function ProductHistory({ id, onClose }) {
  * €/L, sin €/L no hay serie ni comparación. Se teclea una vez por producto y
  * las compras ya registradas se recalculan solas en el servidor.
  */
+const SOLD_BY = [
+  ['PACKAGE', 'envase'],
+  ['WEIGHT', 'a peso'],
+  ['VARIABLE_PIECE', 'pieza variable'],
+]
+
 function ProductForm({ product, purchaseCount, onCancel, onSaved }) {
+  const [soldBy, setSoldBy] = useState(product.soldBy ?? 'PACKAGE')
   const [displayName, setDisplayName] = useState(product.displayName ?? '')
   const [packageSize, setPackageSize] = useState(
     product.packageSize == null ? '' : String(product.packageSize).replace('.', ','),
@@ -378,6 +385,7 @@ function ProductForm({ product, purchaseCount, onCancel, onSaved }) {
           notes: notes || null,
           packageSize: packageSize === '' ? null : Number(packageSize.replace(',', '.')),
           packageUnit: packageUnit || null,
+          soldBy,
         }),
       )
     } catch (e) {
@@ -398,6 +406,16 @@ function ProductForm({ product, purchaseCount, onCancel, onSaved }) {
         />
       </label>
       <label>
+        Cómo se vende
+        <select value={soldBy} onChange={(e) => setSoldBy(e.target.value)}>
+          {SOLD_BY.map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
         Tamaño del envase
         <input
           className="num"
@@ -405,6 +423,7 @@ function ProductForm({ product, purchaseCount, onCancel, onSaved }) {
           onChange={(e) => setPackageSize(e.target.value)}
           placeholder="1"
           inputMode="decimal"
+          disabled={soldBy === 'VARIABLE_PIECE'}
         />
       </label>
       <label>
@@ -414,6 +433,7 @@ function ProductForm({ product, purchaseCount, onCancel, onSaved }) {
           onChange={(e) => setPackageUnit(e.target.value)}
           placeholder="L"
           list="unidades-envase"
+          disabled={soldBy === 'VARIABLE_PIECE'}
         />
         <datalist id="unidades-envase">
           {['kg', 'g', 'L', 'ml', 'cl', 'ud'].map((u) => (
@@ -434,7 +454,17 @@ function ProductForm({ product, purchaseCount, onCancel, onSaved }) {
           verdad —una lechuga, un bote de lavavajillas— y teclearlo es fricción.
           Ponerlo solo, en cambio, haría que el comparador enfrentase precios por
           envase creyendo que son por litro. */}
-      {packageSize === '' && (
+      {/* Una pieza de peso variable no tiene envase que teclear: lo que falta es
+          el peso de cada compra, y ese va en la línea del ticket, no aquí. */}
+      {soldBy === 'VARIABLE_PIECE' && (
+        <p className="unithint muted small">
+          Las piezas de peso variable no se normalizan desde aquí: cada compra pesa distinto. Para
+          que entren en la serie, abre el ticket, pon la línea como «a peso», escribe el peso de
+          esa pieza y vuelve a confirmar.
+        </p>
+      )}
+
+      {packageSize === '' && soldBy !== 'VARIABLE_PIECE' && (
         <p className="unithint">
           <button
             className="link"
