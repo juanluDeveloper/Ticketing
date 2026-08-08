@@ -1,61 +1,204 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { api } from './api.js'
 
+/**
+ * El orden por defecto lo decide el backend: primero lo más comprado, que es
+ * donde la serie tiene algo que contar. Los demás existen porque la pregunta
+ * cambia — "¿qué me están subiendo?" no se responde con la misma lista que
+ * "¿qué compro más?".
+ */
+const ORDERS = [
+  ['compras', 'más compras'],
+  ['subida', 'más ha subido'],
+  ['caro', 'precio más alto'],
+  ['reciente', 'comprado hace menos'],
+  ['nombre', 'nombre'],
+]
+
 export default function HistoryView() {
-  const [products, setProducts] = useState([])
+  const [products, setProducts] = useState(null)
   const [openId, setOpenId] = useState(null)
   const [error, setError] = useState(null)
+  const [query, setQuery] = useState('')
+  const [store, setStore] = useState('')
+  const [order, setOrder] = useState('compras')
 
   useEffect(() => {
     api.products().then(setProducts).catch((e) => setError(e.message))
   }, [])
 
+  const stores = useMemo(() => {
+    if (!products) return []
+    return [...new Set(products.map((p) => p.storeName).filter(Boolean))].sort()
+  }, [products])
+
+  const shown = useMemo(() => {
+    if (!products) return []
+    const needle = query.trim().toLowerCase()
+    const filtered = products.filter(
+      (p) =>
+        (!store || p.storeName === store) &&
+        (!needle || p.name.toLowerCase().includes(needle)),
+    )
+    return [...filtered].sort(comparator(order))
+  }, [products, query, store, order])
+
   if (error) return <p className="error">{error}</p>
   if (openId) return <ProductHistory id={openId} onClose={() => setOpenId(null)} />
+  if (!products) return <p className="muted">Cargando…</p>
 
   return (
-    <section className="card">
-      <h2>Productos</h2>
-      {products.length === 0 && (
+    <section>
+      <div className="pagehead">
+        <h2>Histórico de precios</h2>
         <p className="muted">
-          Aún no hay productos. Salen de validar tickets: cada línea confirmada crea o reutiliza uno.
+          Un producto por súper. La serie sale de los tickets confirmados: cada línea validada
+          añade un punto.
         </p>
+      </div>
+
+      {products.length === 0 ? (
+        <div className="empty">
+          <h3>Aún no hay productos</h3>
+          <p className="muted">
+            Salen de validar tickets: al confirmar uno, cada línea crea o reutiliza un producto y
+            deja un precio en su serie.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="filters">
+            <input
+              className="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar producto"
+              aria-label="Buscar producto"
+            />
+            <label>
+              Súper
+              <select value={store} onChange={(e) => setStore(e.target.value)}>
+                <option value="">todos</option>
+                {stores.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Ordenar por
+              <select value={order} onChange={(e) => setOrder(e.target.value)}>
+                {ORDERS.map(([v, l]) => (
+                  <option key={v} value={v}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <span className="muted small">
+              {shown.length === products.length
+                ? `${products.length} productos`
+                : `${shown.length} de ${products.length}`}
+            </span>
+          </div>
+
+          {shown.length === 0 ? (
+            <div className="empty">
+              <h3>Ningún producto coincide</h3>
+              <p className="muted">
+                Prueba con menos texto o quita el filtro de súper. El mismo artículo en dos súper
+                son dos productos distintos, cada uno con el nombre que imprime su ticket.
+              </p>
+            </div>
+          ) : (
+            <div className="prodgrid">
+              {shown.map((p) => (
+                <ProductCard key={p.id} product={p} onOpen={() => setOpenId(p.id)} />
+              ))}
+            </div>
+          )}
+        </>
       )}
-      <table>
-        <thead>
-          <tr>
-            <th>Producto</th>
-            <th>Súper</th>
-            <th>Compras</th>
-            <th>Último precio</th>
-            <th>Antigüedad</th>
-            <th>Subidas</th>
-          </tr>
-        </thead>
-        <tbody>
-          {products.map((p) => (
-            <tr key={p.id}>
-              <td>
-                <button className="link" onClick={() => setOpenId(p.id)}>
-                  {p.name}
-                </button>
-              </td>
-              <td className="muted">{p.storeCode}</td>
-              <td>{p.purchaseCount}</td>
-              <td>
-                {p.comparable && p.lastNormalizedUnitPrice != null ? (
-                  `${fmt(p.lastNormalizedUnitPrice)} €/${p.normalizedUnit}`
-                ) : (
-                  <span className="muted">no comparable</span>
-                )}
-              </td>
-              <td className="muted">{ageLabel(p.daysSinceLast)}</td>
-              <td>{p.comparable ? p.increaseCount : '—'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </section>
+  )
+}
+
+function ProductCard({ product: p, onOpen }) {
+  return (
+    <button type="button" className="prodcard" onClick={onOpen}>
+      <span className="prodcard-head">
+        <span className="prodcard-name">{p.name}</span>
+        <span className="muted small">{p.storeName ?? p.storeCode}</span>
+      </span>
+
+      {p.comparable && p.lastNormalizedUnitPrice != null ? (
+        <>
+          <span className="prodcard-price">
+            {fmt(p.lastNormalizedUnitPrice)}
+            <span className="unit"> €/{p.normalizedUnit}</span>
+            <Change pct={p.changePct} />
+          </span>
+          <Sparkline series={p.series} />
+          <span className="muted small">
+            {p.purchaseCount} {p.purchaseCount === 1 ? 'compra' : 'compras'} · {ageLabel(p.daysSinceLast)}
+            {p.increaseCount > 0 && ` · ${p.increaseCount} ${p.increaseCount === 1 ? 'subida' : 'subidas'}`}
+          </span>
+        </>
+      ) : (
+        <>
+          <span className="prodcard-price faint">—</span>
+          {/* El motivo aquí y no solo en la ficha: casi siempre es que falta
+              teclear el tamaño del envase, y así se ve sin entrar. */}
+          <span className="warn small">{p.notComparableReason ?? 'sin precio comparable'}</span>
+          <span className="muted small">
+            {p.purchaseCount} {p.purchaseCount === 1 ? 'compra' : 'compras'} · {ageLabel(p.daysSinceLast)}
+          </span>
+        </>
+      )}
+    </button>
+  )
+}
+
+/**
+ * Subir de precio es malo y baja es bueno, así que el color va al revés que en
+ * una cotización: rojo cuando sube. Sin flecha ni icono — el signo ya lo dice y
+ * el color lo refuerza.
+ */
+function Change({ pct }) {
+  if (pct == null) return null
+  const value = Number(pct)
+  if (value === 0) return <span className="change flat"> igual</span>
+  const tone = value > 0 ? 'up' : 'down'
+  return (
+    <span className={`change ${tone}`}>
+      {' '}
+      {value > 0 ? '+' : '−'}
+      {fmtPct(Math.abs(value))} %
+    </span>
+  )
+}
+
+/** Miniserie de la tarjeta: la forma, no los valores. Los valores están dentro. */
+function Sparkline({ series }) {
+  if (!series || series.length < 2) {
+    return <span className="sparkline-empty muted small">una sola compra, aún no hay serie</span>
+  }
+
+  const values = series.map(Number)
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const span = max - min || max || 1
+  const x = (i) => (i * 100) / (values.length - 1)
+  const y = (v) => 28 - ((v - min) / span) * 24
+
+  const path = values.map((v, i) => `${i ? 'L' : 'M'} ${x(i).toFixed(2)} ${y(v).toFixed(2)}`).join(' ')
+
+  return (
+    <svg className="sparkline" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">
+      <path d={path} fill="none" stroke="currentColor" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+      <circle cx={x(values.length - 1)} cy={y(values[values.length - 1])} r="2" fill="currentColor" />
+    </svg>
   )
 }
 
@@ -71,34 +214,54 @@ function ProductHistory({ id, onClose }) {
   if (!history) return <p className="muted">Cargando…</p>
 
   const { product, points, metrics, notComparableReason } = history
+  const normalized = points.filter((p) => p.normalizedUnitPrice != null)
+  const sincePrevious = variation(normalized, 2)
+  const sinceFirst = variation(normalized, normalized.length)
 
   return (
-    <section className="card">
+    <section>
       <button className="link" onClick={onClose}>
         ← Volver a productos
       </button>
-      <h2>{product.displayName || product.canonicalName}</h2>
-      <p className="muted">
-        {product.storeName} · {product.canonicalName}
-        {product.packageSize && ` · ${product.packageSize} ${product.packageUnit}`}
-      </p>
-      {product.notes && <p className="notes">{product.notes}</p>}
 
-      {/* Decir por qué no hay serie vale más que dejar el hueco: casi siempre es
-          que falta teclear el tamaño del envase una vez. */}
+      <div className="pagehead">
+        <h2>{product.displayName || product.canonicalName}</h2>
+        <p className="muted">
+          {product.storeName} · {product.canonicalName}
+          {product.packageSize && ` · ${fmtPlain(product.packageSize)} ${product.packageUnit}`}
+        </p>
+      </div>
+
+      {product.notes && <p className="notes">{product.notes}</p>}
       {notComparableReason && <p className="warn strong">{notComparableReason}</p>}
+
+      {/* Una cifra manda y el resto acompaña. Antes las ocho pesaban igual y el
+          precio de hoy competía con el gasto acumulado. */}
+      {metrics.lastNormalizedUnitPrice != null && (
+        <div className="hero">
+          <div>
+            <dt>Último precio</dt>
+            <dd>
+              {fmt(metrics.lastNormalizedUnitPrice)}
+              <span className="unit"> €/{metrics.normalizedUnit}</span>
+            </dd>
+            <p className="muted small">{ageLabel(metrics.daysSinceLast)}</p>
+          </div>
+          <div className="hero-changes">
+            <p>
+              <span className="muted small">Desde la compra anterior</span>
+              <Change pct={sincePrevious} />
+            </p>
+            <p>
+              <span className="muted small">Desde la primera</span>
+              <Change pct={sinceFirst} />
+            </p>
+          </div>
+        </div>
+      )}
 
       <dl className="metrics">
         <Metric label="Compras" value={metrics.purchaseCount} />
-        <Metric
-          label="Último precio"
-          value={
-            metrics.lastNormalizedUnitPrice != null
-              ? `${fmt(metrics.lastNormalizedUnitPrice)} €/${metrics.normalizedUnit}`
-              : '—'
-          }
-          hint={ageLabel(metrics.daysSinceLast)}
-        />
         <Metric
           label="Mínimo"
           value={metrics.minNormalizedUnitPrice != null ? fmt(metrics.minNormalizedUnitPrice) : '—'}
@@ -111,13 +274,15 @@ function ProductHistory({ id, onClose }) {
           label="Subidas"
           value={metrics.increaseCount}
           hint={`sobre ${metrics.comparablePoints} puntos${
-            metrics.excludedPoints ? `, ${metrics.excludedPoints} excluidos` : ''
+            metrics.excludedPoints
+              ? `, ${metrics.excludedPoints} ${metrics.excludedPoints === 1 ? 'excluido' : 'excluidos'}`
+              : ''
           }`}
         />
         <Metric label="Bajadas" value={metrics.decreaseCount} />
         <Metric
           label="Volatilidad"
-          value={metrics.volatility != null ? `${(metrics.volatility * 100).toFixed(1)} %` : '—'}
+          value={metrics.volatility != null ? `${fmtPct(metrics.volatility * 100)} %` : '—'}
         />
         <Metric label="Gasto total" value={`${fmt(metrics.totalSpent)} €`} />
       </dl>
@@ -128,8 +293,8 @@ function ProductHistory({ id, onClose }) {
         <thead>
           <tr>
             <th>Fecha</th>
-            <th>€/pieza</th>
-            <th>Normalizado</th>
+            <th className="right">€/pieza</th>
+            <th className="right">Normalizado</th>
             <th>Cuenta</th>
             <th>Ticket</th>
           </tr>
@@ -137,9 +302,9 @@ function ProductHistory({ id, onClose }) {
         <tbody>
           {[...points].reverse().map((p, i) => (
             <tr key={i}>
-              <td>{p.date}</td>
-              <td>{fmt(p.pricePerPiece)}</td>
-              <td>
+              <td>{fmtDate(p.date)}</td>
+              <td className="right">{fmt(p.pricePerPiece)}</td>
+              <td className="right">
                 {p.normalizedUnitPrice != null
                   ? `${fmt(p.normalizedUnitPrice)} €/${p.normalizedUnit}`
                   : '—'}
@@ -156,54 +321,87 @@ function ProductHistory({ id, onClose }) {
   )
 }
 
-/** Gráfica en SVG plano: no merece una dependencia para una serie de una línea. */
+/**
+ * Gráfica en SVG plano: no merece una dependencia para una serie de una línea.
+ * Anotada con el mínimo, el máximo y las fechas de los extremos, que es lo que
+ * antes había que ir a buscar a la tabla.
+ */
 function PriceChart({ points, unit }) {
   const usable = points.filter((p) => p.normalizedUnitPrice != null)
   if (usable.length < 2) return null
 
   const W = 640
-  const H = 200
-  const PAD = 34
+  const H = 220
+  const PAD_L = 46
+  const PAD_R = 14
+  const PAD_T = 18
+  const PAD_B = 30
 
   const values = usable.map((p) => Number(p.normalizedUnitPrice))
   const min = Math.min(...values)
   const max = Math.max(...values)
   const span = max - min || max || 1
 
-  const x = (i) => PAD + (i * (W - 2 * PAD)) / (usable.length - 1)
-  const y = (v) => H - PAD - ((v - min) / span) * (H - 2 * PAD)
+  const x = (i) => PAD_L + (i * (W - PAD_L - PAD_R)) / (usable.length - 1)
+  const y = (v) => H - PAD_B - ((v - min) / span) * (H - PAD_T - PAD_B)
 
   const path = usable.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(values[i])}`).join(' ')
+  const minIndex = values.indexOf(min)
+  const maxIndex = values.indexOf(max)
 
   return (
-    <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Evolución del precio">
-      <line x1={PAD} y1={H - PAD} x2={W - PAD} y2={H - PAD} stroke="#ddd" />
-      <line x1={PAD} y1={PAD} x2={PAD} y2={H - PAD} stroke="#ddd" />
-      <text x={4} y={PAD + 4} className="axis">
-        {max.toFixed(2)}
-      </text>
-      <text x={4} y={H - PAD} className="axis">
-        {min.toFixed(2)}
-      </text>
-      <text x={W - PAD} y={14} className="axis" textAnchor="end">
-        €/{unit}
-      </text>
-      <path d={path} fill="none" stroke="#1f6f4a" strokeWidth="2" />
-      {usable.map((p, i) => (
-        <circle
-          key={i}
-          cx={x(i)}
-          cy={y(values[i])}
-          r="3.5"
-          // Las ofertas se pintan huecas: están en la serie de lo pagado, pero
-          // no en la de precio de estantería.
-          fill={p.promo ? '#fff' : '#1f6f4a'}
-          stroke="#1f6f4a"
-        >
-          <title>{`${p.date}: ${values[i].toFixed(4)} €/${unit}${p.promo ? ' (oferta)' : ''}`}</title>
-        </circle>
-      ))}
-    </svg>
+    <figure className="chartbox">
+      <figcaption>
+        Evolución del precio normalizado
+        <span className="muted small">
+          {' '}
+          · las ofertas se pintan huecas: están en lo que pagaste, no en el precio de estantería
+        </span>
+      </figcaption>
+      <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Evolución del precio">
+        {/* Solo dos guías, la del mínimo y la del máximo: son las dos cifras que
+            se leen de una gráfica de precios. */}
+        <line x1={PAD_L} y1={y(max)} x2={W - PAD_R} y2={y(max)} className="grid" />
+        <line x1={PAD_L} y1={y(min)} x2={W - PAD_R} y2={y(min)} className="grid" />
+        <text x={PAD_L - 6} y={y(max) + 4} className="axis" textAnchor="end">
+          {fmt(max)}
+        </text>
+        <text x={PAD_L - 6} y={y(min) + 4} className="axis" textAnchor="end">
+          {fmt(min)}
+        </text>
+        <text x={W - PAD_R} y={12} className="axis" textAnchor="end">
+          €/{unit}
+        </text>
+
+        <path d={path} fill="none" className="line" />
+
+        {usable.map((p, i) => (
+          <circle
+            key={i}
+            cx={x(i)}
+            cy={y(values[i])}
+            r="3.5"
+            className={p.promo ? 'dot promo' : 'dot'}
+          >
+            <title>{`${p.date}: ${values[i].toFixed(4)} €/${unit}${p.promo ? ' (oferta)' : ''}`}</title>
+          </circle>
+        ))}
+
+        {/* Fechas solo en los extremos: rotular las doce las vuelve ilegibles. */}
+        <text x={PAD_L} y={H - 8} className="axis">
+          {shortDate(usable[0].date)}
+        </text>
+        <text x={W - PAD_R} y={H - 8} className="axis" textAnchor="end">
+          {shortDate(usable[usable.length - 1].date)}
+        </text>
+        <text x={x(minIndex)} y={y(min) + 18} className="axis" textAnchor="middle">
+          mín
+        </text>
+        <text x={x(maxIndex)} y={y(max) - 8} className="axis" textAnchor="middle">
+          máx
+        </text>
+      </svg>
+    </figure>
   )
 }
 
@@ -219,6 +417,27 @@ function Metric({ label, value, hint }) {
   )
 }
 
+/** Variación porcentual entre el último punto y el que está n posiciones atrás. */
+function variation(normalized, n) {
+  if (normalized.length < 2 || n < 2) return null
+  const last = Number(normalized[normalized.length - 1].normalizedUnitPrice)
+  const before = Number(normalized[Math.max(0, normalized.length - n)].normalizedUnitPrice)
+  if (!before) return null
+  return ((last - before) / before) * 100
+}
+
+/** Eje de la gráfica: año a dos cifras, que ahí el espacio es el que es. */
+function shortDate(iso) {
+  const [y, m, d] = String(iso).split('-')
+  return d ? `${d}/${m}/${y.slice(2)}` : iso
+}
+
+/** Las fechas se leen en español, no en ISO. */
+function fmtDate(iso) {
+  const [y, m, d] = String(iso ?? '').split('-')
+  return d ? `${d}/${m}/${y}` : (iso ?? '—')
+}
+
 function ageLabel(days) {
   if (days == null) return '—'
   if (days === 0) return 'hoy'
@@ -226,6 +445,32 @@ function ageLabel(days) {
   if (days < 30) return `hace ${days} días`
   const months = Math.round(days / 30)
   return `hace ${months} ${months === 1 ? 'mes' : 'meses'}`
+}
+
+function comparator(order) {
+  switch (order) {
+    case 'subida':
+      // Sin variación conocida al final: un producto de una sola compra no puede
+      // encabezar la lista de "lo que más ha subido".
+      return (a, b) => (b.changePct ?? -Infinity) - (a.changePct ?? -Infinity)
+    case 'caro':
+      return (a, b) => (b.lastNormalizedUnitPrice ?? -Infinity) - (a.lastNormalizedUnitPrice ?? -Infinity)
+    case 'reciente':
+      return (a, b) => (a.daysSinceLast ?? Infinity) - (b.daysSinceLast ?? Infinity)
+    case 'nombre':
+      return (a, b) => a.name.localeCompare(b.name, 'es')
+    default:
+      return (a, b) => b.purchaseCount - a.purchaseCount || a.name.localeCompare(b.name, 'es')
+  }
+}
+
+function fmtPlain(value) {
+  return value == null ? '—' : String(value).replace('.', ',')
+}
+
+/** Un decimal en los porcentajes: dos son precisión que el dato no tiene. */
+function fmtPct(value) {
+  return value == null ? '—' : Number(value).toFixed(1).replace('.', ',')
 }
 
 function fmt(value) {

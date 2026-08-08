@@ -187,6 +187,68 @@ tr.pickerrow > td{background:var(--surface-sunken)}
 tr.preferred > td{background:var(--info-bg)}
 tr.edited td .link.danger{font-weight:var(--fw-bold)}
 
+/* --- Cabecera de página, filtros y vacíos -------------------------------- */
+.pagehead{display:grid;gap:var(--sp-2);margin:0 0 var(--sp-7)}
+.pagehead h2{font:var(--type-page-title);margin:0}
+.pagehead p{max-width:70ch;font:var(--type-body-sm);text-wrap:pretty}
+
+.filters{display:flex;flex-wrap:wrap;gap:var(--sp-5);align-items:center;margin:0 0 var(--sp-6)}
+.filters label{display:flex;align-items:center;gap:var(--sp-3);font:var(--type-body-sm);color:var(--text-muted)}
+.filters .search{min-width:16rem;flex:1;max-width:26rem}
+.filters > .muted{margin-left:auto}
+
+.empty{border:1px dashed var(--border-strong);border-radius:var(--r-md);padding:var(--sp-9) var(--sp-7);text-align:center;display:grid;gap:var(--sp-3);justify-items:center}
+.empty h3{margin:0;font:var(--type-section);color:var(--text-strong)}
+.empty p{max-width:60ch;font:var(--type-body-sm);text-wrap:pretty}
+
+/* Sube en rojo, baja en verde: al revés que una cotización, porque aquí el que
+   paga eres tú. Sin flecha; el signo y el color bastan. */
+.change{font:var(--type-body-sm);font-variant-numeric:tabular-nums lining-nums;white-space:nowrap}
+.change.up{color:var(--danger-fg)}
+.change.down{color:var(--check-pass-fg)}
+.change.flat{color:var(--text-muted)}
+.unit{font:var(--type-body-sm);color:var(--text-muted)}
+.faint{color:var(--text-faint)}
+th.right,td.right{text-align:right}
+
+/* --- Histórico: rejilla de productos ------------------------------------- */
+.prodgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(19rem,1fr));gap:var(--sp-6)}
+.prodcard{display:grid;gap:var(--sp-4);align-content:start;text-align:left;padding:var(--pad-card);background:var(--surface-card);border:1px solid var(--border-default);border-radius:var(--r-md);color:var(--accent-fg);transition:var(--t-hover)}
+.prodcard:hover{background:var(--surface-hover);border-color:var(--border-strong)}
+.prodcard-head{display:flex;align-items:baseline;gap:var(--sp-4)}
+.prodcard-name{flex:1;font:var(--type-section);color:var(--text-strong)}
+.prodcard-price{font:var(--type-metric);color:var(--text-strong);font-variant-numeric:tabular-nums lining-nums;display:flex;align-items:baseline;gap:var(--sp-4);flex-wrap:wrap}
+.sparkline{width:100%;height:32px;display:block;color:var(--accent-fg)}
+.sparkline-empty{display:block;height:32px;line-height:32px}
+
+/* --- Histórico: ficha ----------------------------------------------------- */
+.hero{display:flex;flex-wrap:wrap;gap:var(--sp-8);align-items:flex-start;justify-content:space-between;background:var(--surface-sunken);border-radius:var(--r-md);padding:var(--sp-7);margin:var(--sp-6) 0}
+.hero dt{font:var(--type-caps);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-muted)}
+.hero dd{margin:var(--sp-2) 0 0;font:var(--type-metric-lg);color:var(--text-strong);font-variant-numeric:tabular-nums lining-nums}
+.hero-changes{display:grid;gap:var(--sp-3);text-align:right}
+.hero-changes p{margin:0;display:flex;gap:var(--sp-4);align-items:baseline;justify-content:flex-end}
+
+.chartbox{margin:var(--sp-7) 0;display:grid;gap:var(--sp-4)}
+.chartbox figcaption{font:var(--type-label);color:var(--text-strong);text-wrap:pretty}
+.chart .grid{stroke:var(--border-subtle)}
+.chart .line{stroke:var(--accent-fg);stroke-width:2}
+.chart .dot{fill:var(--accent-fg);stroke:var(--accent-fg)}
+/* Las ofertas huecas: están en la serie de lo pagado, no en la de estantería. */
+.chart .dot.promo{fill:var(--surface-card)}
+
+/* --- Comparador: tarjetas de grupo --------------------------------------- */
+.groups{display:grid;gap:var(--sp-5)}
+.groupcard{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--sp-6);align-items:center;text-align:left;padding:var(--pad-card);background:var(--surface-card);border:1px solid var(--border-default);border-radius:var(--r-md);transition:var(--t-hover)}
+.groupcard:hover{background:var(--surface-hover);border-color:var(--border-strong)}
+.groupcard-main{display:grid;gap:var(--sp-2)}
+.groupcard-name{font:var(--type-section);color:var(--text-strong)}
+.groupcard-price{display:grid;gap:var(--sp-2);justify-items:end;text-align:right}
+.groupcard-price .value{font:var(--type-metric);font-size:var(--fs-20);color:var(--text-strong);font-variant-numeric:tabular-nums lining-nums}
+
+.outside{display:grid;gap:var(--sp-5);margin:var(--sp-4) 0}
+.outside li{border-left:var(--bw-accent,3px) solid var(--border-strong);padding-left:var(--sp-5);display:grid;gap:var(--sp-2);justify-items:start}
+.confirminline{display:inline-flex;gap:var(--sp-4);align-items:baseline;white-space:nowrap}
+
 /* --- Responsive ---------------------------------------------------------- */
 @media (max-width:1100px){
   .split{grid-template-columns:1fr}
@@ -210,4 +272,15 @@ tr.edited td .link.danger{font-weight:var(--fw-bold)}
   .ticketline .danger{opacity:1}
   .metrics{grid-template-columns:repeat(auto-fit,minmax(7rem,1fr))}
   .tab{padding:0 var(--sp-4)}
+  .prodgrid{grid-template-columns:1fr}
+  .filters{gap:var(--sp-4)}
+  .filters .search{min-width:100%;max-width:none}
+  .filters > .muted{margin-left:0}
+  /* La conclusión del grupo baja debajo del nombre en vez de comprimirse en una
+     columna de dos centímetros. */
+  .groupcard{grid-template-columns:1fr}
+  .groupcard-price{justify-items:start;text-align:left}
+  .hero{gap:var(--sp-6)}
+  .hero-changes{text-align:left}
+  .hero-changes p{justify-content:flex-start}
 }

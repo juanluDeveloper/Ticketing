@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { api } from './api.js'
 
 const DIMENSIONS = [
@@ -8,9 +8,10 @@ const DIMENSIONS = [
 ]
 
 export default function ComparatorView() {
-  const [groups, setGroups] = useState([])
+  const [groups, setGroups] = useState(null)
   const [openId, setOpenId] = useState(null)
   const [creating, setCreating] = useState(false)
+  const [query, setQuery] = useState('')
   const [error, setError] = useState(null)
 
   const reload = () => api.groups().then(setGroups).catch((e) => setError(e.message))
@@ -18,6 +19,12 @@ export default function ComparatorView() {
   useEffect(() => {
     reload()
   }, [])
+
+  const shown = useMemo(() => {
+    if (!groups) return []
+    const needle = query.trim().toLowerCase()
+    return needle ? groups.filter((g) => g.name.toLowerCase().includes(needle)) : groups
+  }, [groups, query])
 
   if (openId) {
     return (
@@ -32,56 +39,54 @@ export default function ComparatorView() {
   }
 
   return (
-    <section className="card">
-      <h2>Grupos comparables</h2>
-      <p className="muted">
-        Un grupo junta el mismo artículo en varios súper. Se compara por precio normalizado, así
-        que la unidad la fija la dimensión y todos sus miembros tienen que compartirla.
-      </p>
-      {error && <p className="error">{error}</p>}
+    <section>
+      <div className="pagehead">
+        <h2>Comparador</h2>
+        <p className="muted">
+          Un grupo junta el mismo artículo en varios súper. Se compara por precio normalizado, así
+          que la unidad la fija la dimensión y todos sus miembros tienen que compartirla.
+        </p>
+      </div>
 
-      {groups.length === 0 && !creating && (
-        <p className="muted">Aún no hay grupos. Crea uno y añádele productos de cada súper.</p>
+      {error && <p className="error">{error}</p>}
+      {!groups && <p className="muted">Cargando…</p>}
+
+      {groups && groups.length === 0 && !creating && (
+        <div className="empty">
+          <h3>Aún no hay grupos</h3>
+          <p className="muted">
+            Un grupo enfrenta el mismo artículo en varios súper en €/kg, €/L o €/ud. Necesita al
+            menos dos productos con tamaño de envase conocido: sin tamaño no hay precio
+            normalizado que comparar.
+          </p>
+        </div>
       )}
 
-      {groups.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th>Grupo</th>
-              <th>Miembros</th>
-              <th>Comparables</th>
-              <th>Más barato</th>
-              <th>Preferencia</th>
-            </tr>
-          </thead>
-          <tbody>
-            {groups.map((g) => (
-              <tr key={g.id}>
-                <td>
-                  <button className="link" onClick={() => setOpenId(g.id)}>
-                    {g.name}
-                  </button>
-                </td>
-                <td>{g.memberCount}</td>
-                <td>
-                  {g.comparableCount}
-                  {g.comparableCount < g.memberCount && (
-                    <span className="muted small"> de {g.memberCount}</span>
-                  )}
-                </td>
-                <td>
-                  {g.cheapestStore ? (
-                    `${g.cheapestStore} · ${fmt(g.cheapestPrice)} €/${g.comparisonUnit}`
-                  ) : (
-                    <span className="muted">sin datos</span>
-                  )}
-                </td>
-                <td className="muted">{g.hasPreference ? 'sí' : '—'}</td>
-              </tr>
+      {groups && groups.length > 0 && (
+        <>
+          {groups.length > 6 && (
+            <div className="filters">
+              <input
+                className="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar grupo"
+                aria-label="Buscar grupo"
+              />
+              <span className="muted small">
+                {shown.length === groups.length
+                  ? `${groups.length} grupos`
+                  : `${shown.length} de ${groups.length}`}
+              </span>
+            </div>
+          )}
+
+          <div className="groups">
+            {shown.map((g) => (
+              <GroupCard key={g.id} group={g} onOpen={() => setOpenId(g.id)} />
             ))}
-          </tbody>
-        </table>
+          </div>
+        </>
       )}
 
       {creating ? (
@@ -98,6 +103,51 @@ export default function ComparatorView() {
         </div>
       )}
     </section>
+  )
+}
+
+/**
+ * La conclusión del grupo va en grande y a la derecha: es a lo que se viene.
+ * Antes iba comprimida en una celda de texto con el mismo peso que el recuento
+ * de miembros.
+ */
+function GroupCard({ group: g, onOpen }) {
+  const pending = g.memberCount - g.comparableCount
+
+  return (
+    <button type="button" className="groupcard" onClick={onOpen}>
+      <span className="groupcard-main">
+        <span className="groupcard-name">{g.name}</span>
+        <span className="muted small">
+          {g.memberCount} {g.memberCount === 1 ? 'miembro' : 'miembros'} · se compara en €/
+          {g.comparisonUnit}
+          {g.hasPreference && ' · con preferencia'}
+        </span>
+        {pending > 0 && (
+          <span className="warn small">
+            {pending} {pending === 1 ? 'miembro se queda' : 'miembros se quedan'} fuera de la
+            comparación
+          </span>
+        )}
+      </span>
+
+      <span className="groupcard-price">
+        {g.cheapestPrice != null ? (
+          <>
+            <span className="value">
+              {fmt(g.cheapestPrice)}
+              <span className="unit"> €/{g.comparisonUnit}</span>
+            </span>
+            <span className="muted small">más barato en {g.cheapestStore}</span>
+          </>
+        ) : (
+          <>
+            <span className="value faint">—</span>
+            <span className="warn small">ningún miembro tiene precio comparable</span>
+          </>
+        )}
+      </span>
+    </button>
   )
 }
 
@@ -171,6 +221,7 @@ function GroupDetail({ id, onClose }) {
   const [error, setError] = useState(null)
   const [adding, setAdding] = useState(false)
   const [editingPreference, setEditingPreference] = useState(false)
+  const [confirmingRemoval, setConfirmingRemoval] = useState(null)
 
   const load = () => api.groupComparison(id).then(setData).catch((e) => setError(e.message))
 
@@ -183,17 +234,21 @@ function GroupDetail({ id, onClose }) {
 
   const { group, ranking, notComparable, verdict, dataWarning } = data
   const preferred = ranking.find((r) => r.preferred) ?? notComparable.find((r) => r.preferred)
+  const cheapest = ranking.length > 0 ? Number(ranking[0].normalizedUnitPrice) : null
 
   return (
-    <section className="card">
+    <section>
       <button className="link" onClick={onClose}>
         ← Volver a grupos
       </button>
-      <h2>{group.name}</h2>
-      <p className="muted">
-        Se compara en €/{group.comparisonUnit}
-        {group.categoryName && ` · ${group.categoryName}`} · {group.memberCount} miembros
-      </p>
+
+      <div className="pagehead">
+        <h2>{group.name}</h2>
+        <p className="muted">
+          Se compara en €/{group.comparisonUnit}
+          {group.categoryName && ` · ${group.categoryName}`} · {group.memberCount} miembros
+        </p>
+      </div>
 
       <Verdict verdict={verdict} unit={group.comparisonUnit} />
 
@@ -211,8 +266,11 @@ function GroupDetail({ id, onClose }) {
             <tr>
               <th>Súper</th>
               <th>Producto</th>
-              <th>Precio</th>
-              <th>Con prima</th>
+              <th className="right">Precio</th>
+              {/* La columna que faltaba: sin ella hay que restar de cabeza para
+                  saber si la diferencia compensa el viaje. */}
+              <th className="right">Diferencia</th>
+              <th className="right">Con prima</th>
               <th>Fecha del precio</th>
               <th />
             </tr>
@@ -224,22 +282,29 @@ function GroupDetail({ id, onClose }) {
                   {i === 0 && <span className="badge validated">más barato</span>} {r.storeName}
                 </td>
                 <td>
-                  {r.productName}
-                  {r.preferred && <span className="badge extracted"> preferido</span>}
+                  {r.productName}{' '}
+                  {r.preferred && <span className="badge extracted">preferido</span>}
                 </td>
-                <td>
+                <td className="right">
                   {fmt(r.normalizedUnitPrice)} €/{r.unit}
                 </td>
-                <td className="muted">
+                <td className="right">
+                  <Difference price={r.normalizedUnitPrice} cheapest={cheapest} unit={r.unit} />
+                </td>
+                <td className="right muted">
                   {r.adjustedPrice != null ? `${fmt(r.adjustedPrice)} €/${r.unit}` : '—'}
                 </td>
                 <td className="muted">
-                  {r.observedAt} · {ageLabel(r.ageDays)}
+                  {fmtDate(r.observedAt)} · {ageLabel(r.ageDays)}
                 </td>
                 <td>
-                  <button className="link" onClick={() => remove(r.storeProductId)}>
-                    quitar
-                  </button>
+                  <RemoveButton
+                    label={`${r.storeName} · ${r.productName}`}
+                    confirming={confirmingRemoval === r.storeProductId}
+                    onAsk={() => setConfirmingRemoval(r.storeProductId)}
+                    onCancel={() => setConfirmingRemoval(null)}
+                    onConfirm={() => remove(r.storeProductId)}
+                  />
                 </td>
               </tr>
             ))}
@@ -252,15 +317,20 @@ function GroupDetail({ id, onClose }) {
       {notComparable.length > 0 && (
         <>
           <h3>Fuera de la comparación</h3>
-          <ul className="issues">
+          <ul className="outside">
             {notComparable.map((r) => (
               <li key={r.storeProductId}>
                 <strong>{r.storeName}</strong> · {r.productName}
                 {r.preferred && <span className="badge extracted"> preferido</span>}
                 <div className="muted small">{r.notComparableReason}</div>
-                <button className="link" onClick={() => remove(r.storeProductId)}>
-                  quitar del grupo
-                </button>
+                <RemoveButton
+                  label={`${r.storeName} · ${r.productName}`}
+                  text="quitar del grupo"
+                  confirming={confirmingRemoval === r.storeProductId}
+                  onAsk={() => setConfirmingRemoval(r.storeProductId)}
+                  onCancel={() => setConfirmingRemoval(null)}
+                  onConfirm={() => remove(r.storeProductId)}
+                />
               </li>
             ))}
           </ul>
@@ -275,7 +345,7 @@ function GroupDetail({ id, onClose }) {
           {verdict.preferenceApplied || preferred ? 'Cambiar preferencia' : 'Marcar preferido'}
         </button>
         {(verdict.preferenceApplied || preferred) && (
-          <button className="link" onClick={clearPreference}>
+          <button className="link danger" onClick={clearPreference}>
             Quitar preferencia
           </button>
         )}
@@ -297,12 +367,57 @@ function GroupDetail({ id, onClose }) {
   )
 
   async function remove(storeProductId) {
+    setConfirmingRemoval(null)
     setData(await api.removeGroupMember(id, storeProductId))
   }
 
   async function clearPreference() {
     setData(await api.clearPreference(id))
   }
+}
+
+/**
+ * Cuánto más caro que el más barato, en euros y en tanto por ciento. El
+ * porcentaje solo no basta —un 20 % sobre 0,80 €/L es calderilla— y los euros
+ * solos tampoco dicen si la diferencia es grande para ese producto.
+ */
+function Difference({ price, cheapest, unit }) {
+  if (cheapest == null || price == null) return <span className="muted">—</span>
+  const diff = Number(price) - cheapest
+  if (diff <= 0) return <span className="muted">—</span>
+  const pct = cheapest ? (diff / cheapest) * 100 : null
+  return (
+    <span className="change up">
+      +{fmt(diff)} €/{unit}
+      {pct != null && <span className="muted small"> · +{fmtPct(pct)} %</span>}
+    </span>
+  )
+}
+
+/**
+ * Confirmación en la propia fila. Quitar un miembro tira un dato que costó
+ * reunir, y un enlace suelto se pulsa sin querer; un diálogo del navegador, en
+ * cambio, saca al usuario de la tabla que está mirando.
+ */
+function RemoveButton({ label, text = 'quitar', confirming, onAsk, onCancel, onConfirm }) {
+  if (!confirming) {
+    return (
+      <button className="link" onClick={onAsk} title={`Quitar ${label} del grupo`}>
+        {text}
+      </button>
+    )
+  }
+  return (
+    <span className="confirminline">
+      <span className="small">¿Seguro?</span>
+      <button className="link danger" onClick={onConfirm}>
+        quitar
+      </button>
+      <button className="link" onClick={onCancel}>
+        cancelar
+      </button>
+    </span>
+  )
 }
 
 /**
@@ -331,7 +446,7 @@ function Verdict({ verdict, unit }) {
         <dd>
           {verdict.preferenceCost != null && verdict.preferenceCost > 0
             ? `${fmt(verdict.preferenceCost)} €/${unit}${
-                verdict.preferenceCostPct ? ` · ${fmt(verdict.preferenceCostPct)} %` : ''
+                verdict.preferenceCostPct ? ` · ${fmtPct(verdict.preferenceCostPct)} %` : ''
               }`
             : '—'}
         </dd>
@@ -464,4 +579,15 @@ function ageLabel(days) {
 
 function fmt(value) {
   return value == null ? '—' : Number(value).toFixed(2).replace('.', ',')
+}
+
+/** Un decimal en los porcentajes: dos son precisión que el dato no tiene. */
+function fmtPct(value) {
+  return value == null ? '—' : Number(value).toFixed(1).replace('.', ',')
+}
+
+/** Las fechas se leen en español, no en ISO. */
+function fmtDate(iso) {
+  const [y, m, d] = String(iso ?? '').split('-')
+  return d ? `${d}/${m}/${y}` : (iso ?? '—')
 }
