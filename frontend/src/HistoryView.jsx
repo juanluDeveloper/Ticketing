@@ -259,6 +259,7 @@ function ProductHistory({ id, onClose }) {
         <ProductForm
           product={product}
           purchaseCount={metrics.purchaseCount}
+          lastPricePerPiece={points.length ? points[points.length - 1].pricePerPiece : null}
           onCancel={() => setEditing(false)}
           onSaved={(updated) => {
             setHistory(updated)
@@ -364,7 +365,58 @@ const SOLD_BY = [
   ['VARIABLE_PIECE', 'pieza variable'],
 ]
 
-function ProductForm({ product, purchaseCount, onCancel, onSaved }) {
+/** Las mismas equivalencias que UnitConverter en el servidor. */
+const TO_CANONICAL = {
+  kg: [1, 'kg'],
+  g: [0.001, 'kg'],
+  gr: [0.001, 'kg'],
+  l: [1, 'L'],
+  ml: [0.001, 'L'],
+  cl: [0.01, 'L'],
+  ud: [1, 'ud'],
+  uds: [1, 'ud'],
+  u: [1, 'ud'],
+  pieza: [1, 'ud'],
+}
+
+/**
+ * Lo que costaría la unidad con el tamaño que hay escrito, calculado sobre la
+ * última compra. Es la comprobación que convierte un campo mal entendido en un
+ * error visible antes de guardar.
+ */
+function SizePreview({ soldBy, packageSize, packageUnit, lastPricePerPiece }) {
+  if (soldBy === 'VARIABLE_PIECE' || packageSize === '' || !packageUnit) return null
+
+  const size = Number(String(packageSize).replace(',', '.'))
+  const conversion = TO_CANONICAL[packageUnit.trim().toLowerCase()]
+
+  if (!conversion) {
+    return (
+      <p className="unithint warn small">
+        «{packageUnit}» no es una unidad que el comparador sepa convertir. Se admiten kg, g, L,
+        ml, cl y ud.
+      </p>
+    )
+  }
+  if (!Number.isFinite(size) || size <= 0) return null
+  if (lastPricePerPiece == null) return null
+
+  const [factor, canonical] = conversion
+  const unitPrice = Number(lastPricePerPiece) / (size * factor)
+
+  return (
+    <p className="unithint muted small">
+      Con este tamaño, la última compra ({fmt(lastPricePerPiece)} € por envase) queda en{' '}
+      <strong>
+        {fmt(unitPrice)} €/{canonical}
+      </strong>
+      . Si ese número no es el que esperas, lo que está mal es el tamaño: aquí va lo que{' '}
+      <em>contiene</em> el envase, no lo que cuesta.
+    </p>
+  )
+}
+
+function ProductForm({ product, purchaseCount, lastPricePerPiece, onCancel, onSaved }) {
   const [soldBy, setSoldBy] = useState(product.soldBy ?? 'PACKAGE')
   const [displayName, setDisplayName] = useState(product.displayName ?? '')
   const [packageSize, setPackageSize] = useState(
@@ -454,6 +506,16 @@ function ProductForm({ product, purchaseCount, onCancel, onSaved }) {
           verdad —una lechuga, un bote de lavavajillas— y teclearlo es fricción.
           Ponerlo solo, en cambio, haría que el comparador enfrentase precios por
           envase creyendo que son por litro. */}
+      {/* La cuenta hecha delante, antes de guardar. El campo dice "tamaño" y se
+          lee como "precio": alguien que escriba 15 kg pensando en 15 €/kg ve
+          aquí que su tubo saldría a doce céntimos el kilo y se corrige solo. */}
+      <SizePreview
+        soldBy={soldBy}
+        packageSize={packageSize}
+        packageUnit={packageUnit}
+        lastPricePerPiece={lastPricePerPiece}
+      />
+
       {/* Una pieza de peso variable no tiene envase que teclear: lo que falta es
           el peso de cada compra, y ese va en la línea del ticket, no aquí. */}
       {soldBy === 'VARIABLE_PIECE' && (
