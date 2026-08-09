@@ -271,7 +271,14 @@ function ProductHistory({ id, onClose }) {
         <div className="warn strong actionable">
           <span>{notComparableReason}</span>
           {!editing && (
-            <button onClick={() => setEditing(true)}>Poner el tamaño del envase</button>
+            <button onClick={() => setEditing(true)}>
+              {/* En una pieza variable el envase es justo lo que NO hay que
+                  poner, así que mandarla a "poner el tamaño" sería llevarla al
+                  error del que acaba de salir. */}
+              {product.soldBy === 'VARIABLE_PIECE'
+                ? 'Declarar el precio del mostrador'
+                : 'Poner el tamaño del envase'}
+            </button>
           )}
         </div>
       )}
@@ -480,8 +487,14 @@ function ProductForm({ product, purchaseCount, lastPricePerPiece, onCancel, onSa
         await api.updateProduct(product.id, {
           displayName: displayName || null,
           notes: notes || null,
-          packageSize: packageSize === '' ? null : Number(packageSize.replace(',', '.')),
-          packageUnit: packageUnit || null,
+          // Una pieza variable no tiene envase por definición. Se manda null
+          // pase lo que pase con el estado del formulario: un producto guardado
+          // hace tiempo puede arrastrar un tamaño que ya no significa nada.
+          packageSize:
+            soldBy === 'VARIABLE_PIECE' || packageSize === ''
+              ? null
+              : Number(packageSize.replace(',', '.')),
+          packageUnit: soldBy === 'VARIABLE_PIECE' ? null : packageUnit || null,
           soldBy,
           declaredUnitPrice: declaredPrice === '' ? null : Number(declaredPrice.replace(',', '.')),
           declaredUnit: declaredUnit || null,
@@ -506,7 +519,20 @@ function ProductForm({ product, purchaseCount, lastPricePerPiece, onCancel, onSa
       </label>
       <label>
         Cómo se vende
-        <select value={soldBy} onChange={(e) => setSoldBy(e.target.value)}>
+        {/* Al pasar a pieza variable se vacía el envase a la vista, no por
+            detrás: si los campos se quedaran deshabilitados con su valor
+            antiguo, no habría forma de quitar un "1 kg" mal puesto y se
+            guardaría igual. */}
+        <select
+          value={soldBy}
+          onChange={(e) => {
+            setSoldBy(e.target.value)
+            if (e.target.value === 'VARIABLE_PIECE') {
+              setPackageSize('')
+              setPackageUnit('')
+            }
+          }}
+        >
           {SOLD_BY.map(([value, label]) => (
             <option key={value} value={value}>
               {label}
@@ -600,9 +626,11 @@ function ProductForm({ product, purchaseCount, lastPricePerPiece, onCancel, onSa
           el peso de cada compra, y ese va en la línea del ticket, no aquí. */}
       {soldBy === 'VARIABLE_PIECE' && (
         <p className="unithint muted small">
-          Las piezas de peso variable no se normalizan desde aquí: cada compra pesa distinto. Para
-          que entren en la serie, abre el ticket, pon la línea como «a peso», escribe el peso de
-          esa pieza y vuelve a confirmar.
+          Las piezas de peso variable no llevan envase: cada compra pesa distinto, así que al
+          guardar se quita el tamaño que hubiera y las compras dejan de tener precio por unidad.
+          Para que entren en la serie, abre el ticket, pon la línea como «a peso», escribe el peso
+          de esa pieza y vuelve a confirmar. Si lo que sabes es el precio del mostrador,
+          decláralo abajo.
         </p>
       )}
 

@@ -89,6 +89,15 @@ public class StoreProductController {
 
         SoldBy soldBy = parseSoldBy(update.soldBy(), product.getSoldBy());
 
+        // Una pieza de peso variable no tiene envase: cada unidad pesa lo que
+        // pesa. Dejar el tamaño puesto la haría normalizable y el histórico
+        // acabaría con un €/kg calculado sobre un peso inventado, que es
+        // exactamente el error que trajo aquí al tubo de pota.
+        if (soldBy == SoldBy.VARIABLE_PIECE) {
+            size = null;
+            unit = null;
+        }
+
         boolean affectsPrices = !Objects.equals(product.getPackageSize(), size)
                 || !Objects.equals(product.getPackageUnit(), unit)
                 || soldBy != product.getSoldBy();
