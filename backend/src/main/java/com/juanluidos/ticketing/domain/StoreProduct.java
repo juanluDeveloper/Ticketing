@@ -6,6 +6,8 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Artículo lógico dentro de UN súper. Es el nivel que acumula histórico de
@@ -75,24 +77,14 @@ public class StoreProduct {
     private String usualTaxLetter;
 
     /**
-     * Precio por unidad leído en el mostrador, para los productos cuyo ticket
-     * nunca dará lo suficiente para calcularlo: el tubo de pota imprime nombre e
-     * importe, sin peso y sin €/kg.
-     *
-     * <p>No es una observación de precio. No sale de un ticket, no entra en la
-     * serie del histórico y no cuenta subidas: solo lo usa el comparador como
-     * respaldo, etiquetado como declarado. Ya viene en unidad canónica.
+     * Precios leídos en el cartel, para los productos cuyo ticket nunca dará lo
+     * suficiente para calcularlos. Es una serie, no un dato suelto: ver que la
+     * pota pasó de 15 a 16 €/kg es justo lo que se busca. Ver
+     * {@link DeclaredPrice}.
      */
-    @Column(name = "declared_unit_price", precision = 12, scale = 4)
-    private BigDecimal declaredUnitPrice;
-
-    /** kg, L o ud. */
-    @Column(name = "declared_unit", length = 10)
-    private String declaredUnit;
-
-    /** Cuándo se leyó ese precio, que es lo que lo deja envejecer como los demás. */
-    @Column(name = "declared_at")
-    private LocalDateTime declaredAt;
+    @OneToMany(mappedBy = "storeProduct", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("declaredAt ASC")
+    private List<DeclaredPrice> declaredPrices = new ArrayList<>();
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();

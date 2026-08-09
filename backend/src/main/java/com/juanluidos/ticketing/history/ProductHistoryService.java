@@ -3,6 +3,7 @@ package com.juanluidos.ticketing.history;
 import com.juanluidos.ticketing.domain.PriceObservation;
 import com.juanluidos.ticketing.domain.SoldBy;
 import com.juanluidos.ticketing.domain.StoreProduct;
+import com.juanluidos.ticketing.repository.DeclaredPriceRepository;
 import com.juanluidos.ticketing.repository.PriceObservationRepository;
 import com.juanluidos.ticketing.repository.StoreProductRepository;
 import org.springframework.stereotype.Service;
@@ -35,11 +36,14 @@ public class ProductHistoryService {
 
     private final StoreProductRepository products;
     private final PriceObservationRepository observations;
+    private final DeclaredPriceRepository declaredPrices;
 
     public ProductHistoryService(StoreProductRepository products,
-                                 PriceObservationRepository observations) {
+                                 PriceObservationRepository observations,
+                                 DeclaredPriceRepository declaredPrices) {
         this.products = products;
         this.observations = observations;
+        this.declaredPrices = declaredPrices;
     }
 
     @Transactional(readOnly = true)
@@ -54,7 +58,13 @@ public class ProductHistoryService {
                 .sorted(Comparator.comparing(PriceHistory.Point::date))
                 .toList();
 
-        return new PriceHistory(toInfo(product), points, metrics(all, points),
+        List<PriceHistory.DeclaredEntry> declared =
+                declaredPrices.findByStoreProductIdOrderByDeclaredAtAsc(storeProductId).stream()
+                        .map(d -> new PriceHistory.DeclaredEntry(
+                                d.getId(), d.getDeclaredAt(), d.getUnitPrice(), d.getUnit(), d.getNote()))
+                        .toList();
+
+        return new PriceHistory(toInfo(product), points, metrics(all, points), declared,
                 notComparableReason(product, points));
     }
 
@@ -201,9 +211,6 @@ public class ProductHistoryService {
                 product.getNotes(),
                 product.getPackageSize(),
                 product.getPackageUnit(),
-                product.getSoldBy() == null ? null : product.getSoldBy().name(),
-                product.getDeclaredUnitPrice(),
-                product.getDeclaredUnit(),
-                product.getDeclaredAt() == null ? null : product.getDeclaredAt().toLocalDate());
+                product.getSoldBy() == null ? null : product.getSoldBy().name());
     }
 }

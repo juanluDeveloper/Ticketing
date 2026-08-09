@@ -77,6 +77,8 @@ export const api = {
   // Devuelve el histórico ya recalculado: cambiar el tamaño del envase rehace
   // las compras anteriores, así que la respuesta trae la serie nueva.
   updateProduct: (id, body) => request(`/products/${id}`, { method: 'PATCH', body }),
+  deleteDeclaredPrice: (id, declaredId) =>
+    request(`/products/${id}/declared/${declaredId}`, { method: 'DELETE' }),
 
   groups: () => request('/groups'),
   createGroup: (body) => request('/groups', { method: 'POST', body }),

@@ -2,6 +2,7 @@ package com.juanluidos.ticketing.comparison;
 
 import com.juanluidos.ticketing.domain.*;
 import com.juanluidos.ticketing.repository.ComparableGroupRepository;
+import com.juanluidos.ticketing.repository.DeclaredPriceRepository;
 import com.juanluidos.ticketing.repository.PriceObservationRepository;
 import com.juanluidos.ticketing.repository.StoreProductRepository;
 import com.juanluidos.ticketing.repository.UserProductPreferenceRepository;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -34,6 +36,7 @@ class ComparisonServiceTest {
 
     private StoreProductRepository products;
     private PriceObservationRepository observations;
+    private DeclaredPriceRepository declaredPrices;
     private UserProductPreferenceRepository preferences;
     private ComparisonService service;
 
@@ -47,8 +50,9 @@ class ComparisonServiceTest {
         ComparableGroupRepository groups = mock(ComparableGroupRepository.class);
         products = mock(StoreProductRepository.class);
         observations = mock(PriceObservationRepository.class);
+        declaredPrices = mock(DeclaredPriceRepository.class);
         preferences = mock(UserProductPreferenceRepository.class);
-        service = new ComparisonService(groups, products, observations, preferences);
+        service = new ComparisonService(groups, products, observations, declaredPrices, preferences);
 
         group = new ComparableGroup();
         group.setId(GROUP_ID);
@@ -136,10 +140,8 @@ class ComparisonServiceTest {
     /** Un precio medido en un ticket gana siempre al tecleado, aunque sea más viejo. */
     @Test
     void aMeasuredPriceBeatsTheDeclaredOne() {
-        StoreProduct product = product("MERCADONA", "Mercadona", "LECHE FRESCA", price("1.15", 200));
-        product.setDeclaredUnitPrice(new BigDecimal("0.50"));
-        product.setDeclaredUnit("L");
-        product.setDeclaredAt(LocalDateTime.now());
+        declared(product("MERCADONA", "Mercadona", "LECHE FRESCA", price("1.15", 200)),
+                "0.50", "L", 0);
 
         GroupComparison c = compare();
 
@@ -377,9 +379,13 @@ class ComparisonServiceTest {
     }
 
     private void declared(StoreProduct product, String price, String unit, int daysAgo) {
-        product.setDeclaredUnitPrice(new BigDecimal(price));
-        product.setDeclaredUnit(unit);
-        product.setDeclaredAt(LocalDateTime.now().minusDays(daysAgo));
+        DeclaredPrice entry = new DeclaredPrice();
+        entry.setStoreProduct(product);
+        entry.setUnitPrice(new BigDecimal(price));
+        entry.setUnit(unit);
+        entry.setDeclaredAt(LocalDate.now().minusDays(daysAgo));
+        when(declaredPrices.findFirstByStoreProductIdOrderByDeclaredAtDesc(product.getId()))
+                .thenReturn(Optional.of(entry));
     }
 
     private void preference(StoreProduct preferred, MarginType type, String value) {

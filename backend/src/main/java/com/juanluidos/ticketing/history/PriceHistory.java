@@ -10,6 +10,8 @@ public record PriceHistory(
         ProductInfo product,
         List<Point> points,
         Metrics metrics,
+        /** Lecturas del cartel, en orden. Vacío en la inmensa mayoría de productos. */
+        List<DeclaredEntry> declaredPrices,
         /**
          * Por qué este producto no tiene precio comparable, cuando no lo tiene.
          * Se dice explícitamente en vez de mostrar un hueco: un histórico vacío
@@ -28,15 +30,21 @@ public record PriceHistory(
             String notes,
             BigDecimal packageSize,
             String packageUnit,
-            String soldBy,
-            /**
-             * Precio del mostrador tecleado a mano, ya en unidad canónica. No
-             * forma parte de la serie —no sale de ningún ticket— pero la ficha
-             * lo enseña y el comparador lo usa como respaldo.
-             */
-            BigDecimal declaredUnitPrice,
-            String declaredUnit,
-            LocalDate declaredAt
+            String soldBy
+    ) {
+    }
+
+    /**
+     * Una lectura del cartel. No forma parte de la serie de tickets —no sale de
+     * ninguna compra— pero es una serie por derecho propio: el precio del
+     * mostrador también sube.
+     */
+    public record DeclaredEntry(
+            Long id,
+            LocalDate date,
+            BigDecimal unitPrice,
+            String unit,
+            String note
     ) {
     }
 

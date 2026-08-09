@@ -239,7 +239,9 @@ th.right,td.right{text-align:right}
    el ticket no da para más, no como atajo para no teclear el envase. */
 .declared{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:var(--sp-5);padding:var(--sp-5) 0 0;border-top:1px solid var(--border-subtle)}
 .declared > p{grid-column:1/-1;margin:0;text-wrap:pretty}
-.declaredline{display:flex;gap:var(--sp-4);align-items:baseline;flex-wrap:wrap;background:var(--info-bg);border-radius:var(--r-xs);padding:var(--sp-4) var(--sp-5);margin:var(--sp-5) 0;font:var(--type-body-sm)}
+.declaredbox{margin:var(--sp-5) 0}
+.declaredline{display:flex;gap:var(--sp-4);align-items:baseline;flex-wrap:wrap;background:var(--info-bg);border-radius:var(--r-xs);padding:var(--sp-4) var(--sp-5);margin:0;font:var(--type-body-sm)}
+.declaredtable{margin:var(--sp-4) 0 0;max-width:44rem}
 
 .chartbox{margin:var(--sp-7) 0;display:grid;gap:var(--sp-4)}
 .chartbox figcaption{font:var(--type-label);color:var(--text-strong);text-wrap:pretty}
@@ -261,6 +263,21 @@ th.right,td.right{text-align:right}
 .outside{display:grid;gap:var(--sp-5);margin:var(--sp-4) 0}
 .outside li{border-left:var(--bw-accent,3px) solid var(--border-strong);padding-left:var(--sp-5);display:grid;gap:var(--sp-2);justify-items:start}
 .confirminline{display:inline-flex;gap:var(--sp-4);align-items:baseline;white-space:nowrap}
+
+/* --- Deshabilitado -------------------------------------------------------- */
+/* Al final del fichero a propósito. Las reglas por contexto (.newproduct input,
+   .picker input, td input) vuelven a pintar el fondo con la misma especificidad,
+   así que la última es la que manda. Y un campo deshabilitado tiene que parecerlo
+   en todos los contextos: si se ve igual que los demás, el usuario pincha, no
+   pasa nada y no entiende por qué. */
+input:disabled,select:disabled{
+  background:var(--surface-sunken);
+  color:var(--text-faint);
+  border-color:var(--border-subtle);
+  border-style:dashed;
+  cursor:not-allowed;
+}
+label:has(input:disabled),label:has(select:disabled){color:var(--text-faint)}
 
 /* --- Responsive ---------------------------------------------------------- */
 @media (max-width:1100px){

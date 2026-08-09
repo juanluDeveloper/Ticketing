@@ -1,15 +1,18 @@
 package com.juanluidos.ticketing.api;
 
+import com.juanluidos.ticketing.domain.DeclaredPrice;
 import com.juanluidos.ticketing.domain.PriceObservation;
 import com.juanluidos.ticketing.domain.SoldBy;
 import com.juanluidos.ticketing.domain.StoreProduct;
 import com.juanluidos.ticketing.history.PriceHistory;
 import com.juanluidos.ticketing.history.ProductHistoryService;
+import com.juanluidos.ticketing.repository.DeclaredPriceRepository;
 import com.juanluidos.ticketing.repository.PriceObservationRepository;
 import com.juanluidos.ticketing.repository.StoreProductRepository;
 import com.juanluidos.ticketing.validation.PriceNormalizer;
 import com.juanluidos.ticketing.validation.UnitConverter;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -17,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
 
@@ -33,15 +37,18 @@ public class StoreProductController {
 
     private final StoreProductRepository products;
     private final PriceObservationRepository observations;
+    private final DeclaredPriceRepository declaredPrices;
     private final ProductHistoryService history;
     private final PriceNormalizer normalizer;
 
     public StoreProductController(StoreProductRepository products,
                                   PriceObservationRepository observations,
+                                  DeclaredPriceRepository declaredPrices,
                                   ProductHistoryService history,
                                   PriceNormalizer normalizer) {
         this.products = products;
         this.observations = observations;
+        this.declaredPrices = declaredPrices;
         this.history = history;
         this.normalizer = normalizer;
     }
@@ -57,10 +64,17 @@ public class StoreProductController {
             String packageUnit,
             /** PACKAGE, WEIGHT o VARIABLE_PIECE. Null lo deja como está. */
             String soldBy,
-            /** Precio del mostrador, tecleado a mano. Solo para el comparador. */
+            /**
+             * Nueva lectura del cartel. Se añade a la serie de precios
+             * declarados; no pisa las anteriores. Null no toca nada: para
+             * borrar una lectura está su propio endpoint.
+             */
             BigDecimal declaredUnitPrice,
             /** La unidad de ese precio tal cual se teclee: kg, g, L, ml, cl o ud. */
-            String declaredUnit
+            String declaredUnit,
+            /** El día del cartel. Null es hoy. */
+            LocalDate declaredAt,
+            String declaredNote
     ) {
     }
 
@@ -132,23 +146,24 @@ public class StoreProductController {
     }
 
     /**
-     * El precio declarado se guarda en unidad canónica: si se teclea en €/g, lo
-     * que se compara luego son €/kg, y hacer la conversión aquí evita que el
-     * ranking tenga que adivinar en qué unidad está cada miembro.
+     * Añade una lectura del cartel a la serie del producto.
      *
-     * <p>La fecha solo se mueve cuando el precio cambia de verdad. Guardar el
-     * producto para corregir una nota no puede rejuvenecer un precio que sigue
-     * siendo el mismo de hace medio año: esa fecha es lo que hace que el aviso
-     * de calidad del dato signifique algo.
+     * <p>El precio se guarda en unidad canónica: si se teclea en €/g, lo que se
+     * compara luego son €/kg, y convertir aquí evita que el ranking tenga que
+     * adivinar en qué unidad está cada miembro.
+     *
+     * <p>Dos lecturas del mismo día son la misma lectura y la segunda corrige a
+     * la primera. Dos de días distintos son dos puntos de la serie, aunque el
+     * precio no haya cambiado: "el 14 de octubre seguía a 15" es información.
      */
     private void applyDeclaredPrice(StoreProduct product, ProductUpdate update) {
         BigDecimal price = update.declaredUnitPrice();
         String unit = blankToNull(update.declaredUnit());
 
+        // Sin precio no se toca nada. Para quitar una lectura está su endpoint:
+        // mandar el campo vacío al guardar cualquier otra cosa no puede borrar
+        // un historial entero sin querer.
         if (price == null && unit == null) {
-            product.setDeclaredUnitPrice(null);
-            product.setDeclaredUnit(null);
-            product.setDeclaredAt(null);
             return;
         }
         if (price == null || unit == null) {
@@ -157,6 +172,11 @@ public class StoreProductController {
         }
         if (price.signum() <= 0) {
             throw new IllegalArgumentException("El precio declarado tiene que ser mayor que cero.");
+        }
+
+        LocalDate day = update.declaredAt() == null ? LocalDate.now() : update.declaredAt();
+        if (day.isAfter(LocalDate.now())) {
+            throw new IllegalArgumentException("La fecha del precio declarado no puede ser futura.");
         }
 
         // €/g -> €/kg es dividir entre el factor, no multiplicarlo: un gramo es
@@ -168,15 +188,27 @@ public class StoreProductController {
         String canonicalUnit = UnitConverter.dimensionOf(unit).orElseThrow().getCanonicalUnit();
         BigDecimal canonicalPrice = price.divide(factor, 4, java.math.RoundingMode.HALF_UP);
 
-        boolean changed = product.getDeclaredUnitPrice() == null
-                || canonicalPrice.compareTo(product.getDeclaredUnitPrice()) != 0
-                || !canonicalUnit.equals(product.getDeclaredUnit());
+        DeclaredPrice entry = declaredPrices
+                .findByStoreProductIdAndDeclaredAt(product.getId(), day)
+                .orElseGet(DeclaredPrice::new);
+        entry.setStoreProduct(product);
+        entry.setUnitPrice(canonicalPrice);
+        entry.setUnit(canonicalUnit);
+        entry.setDeclaredAt(day);
+        entry.setNote(blankToNull(update.declaredNote()));
+        declaredPrices.save(entry);
+    }
 
-        product.setDeclaredUnitPrice(canonicalPrice);
-        product.setDeclaredUnit(canonicalUnit);
-        if (changed || product.getDeclaredAt() == null) {
-            product.setDeclaredAt(java.time.LocalDateTime.now());
+    /** Quitar una lectura mal metida sin tocar el resto de la serie. */
+    @DeleteMapping("/{id}/declared/{declaredId}")
+    @Transactional
+    public PriceHistory deleteDeclared(@PathVariable Long id, @PathVariable Long declaredId) {
+        DeclaredPrice entry = declaredPrices.findById(declaredId).orElseThrow();
+        if (!entry.getStoreProduct().getId().equals(id)) {
+            throw new IllegalArgumentException("Ese precio declarado no es de este producto.");
         }
+        declaredPrices.delete(entry);
+        return history.of(id);
     }
 
     private SoldBy parseSoldBy(String raw, SoldBy current) {

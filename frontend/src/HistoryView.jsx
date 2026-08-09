@@ -214,7 +214,7 @@ function ProductHistory({ id, onClose }) {
   if (error) return <p className="error">{error}</p>
   if (!history) return <p className="muted">Cargando…</p>
 
-  const { product, points, metrics, notComparableReason } = history
+  const { product, points, metrics, notComparableReason, declaredPrices = [] } = history
   // Un día, un punto. Tres tubos de pota de la misma bolsa no son tres momentos
   // del precio, y dibujarlos separados inventa una subida que no ocurrió. Es la
   // misma regla con la que el motor cuenta las subidas.
@@ -238,31 +238,12 @@ function ProductHistory({ id, onClose }) {
 
       {product.notes && <p className="notes">{product.notes}</p>}
 
-      {/* Se enseña aparte de las métricas y con la etiqueta puesta: no es un
-          precio medido y no debe leerse como si lo fuera. */}
-      {product.declaredUnitPrice != null && (
-        <p className="declaredline">
-          <span className="badge extracted">declarado</span> Precio del mostrador:{' '}
-          <strong>
-            {fmt(product.declaredUnitPrice)} €/{product.declaredUnit}
-          </strong>
-          <span className="muted small">
-            {' '}
-            · lo tecleaste el {fmtDate(product.declaredAt)} · solo lo usa el comparador
-          </span>
-          {/* Justo la confusión que provoca ver 15 €/kg arriba y 2,03 €/kg en la
-              tabla: si hay precio medido, el declarado no se usa, y callarlo
-              deja creer que el comparador está comparando otra cosa. */}
-          {metrics.lastNormalizedUnitPrice != null && (
-            <span className="warn small">
-              {' '}
-              — ahora mismo el comparador NO lo usa: hay precios medidos en tickets (
-              {fmt(metrics.lastNormalizedUnitPrice)} €/{metrics.normalizedUnit}) y esos ganan
-              siempre. Si ese precio medido no es real, quita el tamaño del envase.
-            </span>
-          )}
-        </p>
-      )}
+      <DeclaredSeries
+        entries={declaredPrices}
+        measured={metrics.lastNormalizedUnitPrice}
+        measuredUnit={metrics.normalizedUnit}
+        onRemove={async (declaredId) => setHistory(await api.deleteDeclaredPrice(id, declaredId))}
+      />
 
       {/* El aviso lleva al sitio donde se arregla. Antes decía "ponlo una vez en
           el producto" y no había dónde ponerlo: el tamaño solo se podía teclear
@@ -296,6 +277,9 @@ function ProductHistory({ id, onClose }) {
           product={product}
           purchaseCount={metrics.purchaseCount}
           lastPricePerPiece={points.length ? points[points.length - 1].pricePerPiece : null}
+          lastDeclaredUnit={
+            declaredPrices.length ? declaredPrices[declaredPrices.length - 1].unit : null
+          }
           onCancel={() => setEditing(false)}
           onSaved={(updated) => {
             setHistory(updated)
@@ -413,6 +397,109 @@ const SOLD_BY = [
   ['VARIABLE_PIECE', 'pieza variable'],
 ]
 
+/**
+ * Las lecturas del cartel, en su propia serie y con la etiqueta puesta.
+ *
+ * <p>Aparte del histórico de tickets a propósito: uno prueba lo que pagaste y
+ * otro es lo que viste en una etiqueta. Pero sí es una serie, porque el cartel
+ * también sube, y ver que la pota pasó de 15 a 16 €/kg es para lo que existe.
+ */
+function DeclaredSeries({ entries, measured, measuredUnit, onRemove }) {
+  const [removing, setRemoving] = useState(null)
+  if (!entries || entries.length === 0) return null
+
+  const current = entries[entries.length - 1]
+  const previous = entries.length > 1 ? entries[entries.length - 2] : null
+  const change =
+    previous && Number(previous.unitPrice)
+      ? ((Number(current.unitPrice) - Number(previous.unitPrice)) / Number(previous.unitPrice)) * 100
+      : null
+
+  return (
+    <div className="declaredbox">
+      <p className="declaredline">
+        <span className="badge extracted">declarado</span> Precio del mostrador:{' '}
+        <strong>
+          {fmt(current.unitPrice)} €/{current.unit}
+        </strong>
+        <Change pct={change} />
+        <span className="muted small"> · desde el {fmtDate(current.date)}</span>
+        {/* Justo la confusión de ver 15 €/kg arriba y 2,03 €/kg en la tabla: si
+            hay precio medido, el declarado no se usa, y callarlo deja creer que
+            el comparador compara otra cosa. */}
+        {measured != null && (
+          <span className="warn small">
+            {' '}
+            — ahora mismo el comparador NO lo usa: hay precios medidos en tickets ({fmt(measured)}{' '}
+            €/{measuredUnit}) y esos ganan siempre. Si ese precio medido no es real, quita el
+            tamaño del envase.
+          </span>
+        )}
+      </p>
+
+      {entries.length > 1 && (
+        <table className="declaredtable">
+          <thead>
+            <tr>
+              <th>Desde</th>
+              <th className="right">Precio</th>
+              <th className="right">Cambio</th>
+              <th>Nota</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {[...entries].reverse().map((entry, i, all) => {
+              const before = all[i + 1]
+              const pct =
+                before && Number(before.unitPrice)
+                  ? ((Number(entry.unitPrice) - Number(before.unitPrice)) /
+                      Number(before.unitPrice)) *
+                    100
+                  : null
+              return (
+                <tr key={entry.id}>
+                  <td>{fmtDate(entry.date)}</td>
+                  <td className="right">
+                    {fmt(entry.unitPrice)} €/{entry.unit}
+                  </td>
+                  <td className="right">
+                    {pct == null ? <span className="muted">—</span> : <Change pct={pct} />}
+                  </td>
+                  <td className="muted">{entry.note ?? '—'}</td>
+                  <td>
+                    {removing === entry.id ? (
+                      <span className="confirminline">
+                        <span className="small">¿Seguro?</span>
+                        <button
+                          className="link danger"
+                          onClick={() => {
+                            setRemoving(null)
+                            onRemove(entry.id)
+                          }}
+                        >
+                          quitar
+                        </button>
+                        <button className="link" onClick={() => setRemoving(null)}>
+                          cancelar
+                        </button>
+                      </span>
+                    ) : (
+                      <button className="link" onClick={() => setRemoving(entry.id)}>
+                        quitar
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
 /** Las mismas equivalencias que UnitConverter en el servidor. */
 const TO_CANONICAL = {
   kg: [1, 'kg'],
@@ -464,12 +551,22 @@ function SizePreview({ soldBy, packageSize, packageUnit, lastPricePerPiece }) {
   )
 }
 
-function ProductForm({ product, purchaseCount, lastPricePerPiece, onCancel, onSaved }) {
+function ProductForm({
+  product,
+  purchaseCount,
+  lastPricePerPiece,
+  lastDeclaredUnit,
+  onCancel,
+  onSaved,
+}) {
   const [soldBy, setSoldBy] = useState(product.soldBy ?? 'PACKAGE')
-  const [declaredPrice, setDeclaredPrice] = useState(
-    product.declaredUnitPrice == null ? '' : String(product.declaredUnitPrice).replace('.', ','),
-  )
-  const [declaredUnit, setDeclaredUnit] = useState(product.declaredUnit ?? '')
+  // El precio declarado arranca vacío aunque ya haya lecturas: lo que se teclea
+  // aquí es una lectura NUEVA, no una corrección de la anterior. Prerrellenarlo
+  // invitaría a guardar sin querer el mismo precio con la fecha de hoy.
+  const [declaredPrice, setDeclaredPrice] = useState('')
+  const [declaredUnit, setDeclaredUnit] = useState(lastDeclaredUnit ?? '')
+  const [declaredDate, setDeclaredDate] = useState(today())
+  const [declaredNote, setDeclaredNote] = useState('')
   const [displayName, setDisplayName] = useState(product.displayName ?? '')
   const [packageSize, setPackageSize] = useState(
     product.packageSize == null ? '' : String(product.packageSize).replace('.', ','),
@@ -497,7 +594,9 @@ function ProductForm({ product, purchaseCount, lastPricePerPiece, onCancel, onSa
           packageUnit: soldBy === 'VARIABLE_PIECE' ? null : packageUnit || null,
           soldBy,
           declaredUnitPrice: declaredPrice === '' ? null : Number(declaredPrice.replace(',', '.')),
-          declaredUnit: declaredUnit || null,
+          declaredUnit: declaredPrice === '' ? null : declaredUnit || null,
+          declaredAt: declaredPrice === '' ? null : declaredDate,
+          declaredNote: declaredPrice === '' ? null : declaredNote || null,
         }),
       )
     } catch (e) {
@@ -603,12 +702,35 @@ function ProductForm({ product, purchaseCount, lastPricePerPiece, onCancel, onSa
             list="unidades-envase"
           />
         </label>
+        <label>
+          El día
+          {/* La fecha se puede mover hacia atrás: lo normal es apuntar el precio
+              cuando revisas el ticket, días después de haber estado en la
+              tienda, y ponerlo hoy falsearía cuándo estaba a ese precio. */}
+          <input
+            type="date"
+            value={declaredDate}
+            max={today()}
+            onChange={(e) => setDeclaredDate(e.target.value)}
+          />
+        </label>
+        <label>
+          Nota
+          <input
+            value={declaredNote}
+            onChange={(e) => setDeclaredNote(e.target.value)}
+            placeholder="cartel de la pescadería"
+          />
+        </label>
         <p className="muted small">
           Solo para lo que el ticket no permite calcular nunca, como el tubo de pota: nombre e
-          importe, sin peso ni precio por kilo. Lo tecleas leyendo el cartel y{' '}
-          <strong>solo lo usa el comparador</strong>, marcado como declarado y con la fecha de
-          hoy. No entra en la serie de precios ni cuenta subidas: eso solo lo hacen los tickets.
-          {product.declaredAt && ` Ahora mismo declarado el ${fmtDate(product.declaredAt)}.`}
+          importe, sin peso ni precio por kilo. Cada vez que lo guardas{' '}
+          <strong>se añade una lectura nueva</strong> con su fecha, así que si en agosto estaba a
+          15 €/kg y en octubre a 16, se ve el cambio. Dos lecturas del mismo día son la misma: la
+          segunda corrige a la primera.
+          <br />
+          Solo lo usa el comparador, marcado como declarado. No entra en la serie de los tickets
+          ni cuenta subidas: eso solo lo hacen las compras.
         </p>
       </div>
 
@@ -803,6 +925,14 @@ function variation(normalized, n) {
 function shortDate(iso) {
   const [y, m, d] = String(iso).split('-')
   return d ? `${d}/${m}/${y.slice(2)}` : iso
+}
+
+/** Hoy en el formato que quiere un <input type="date">. */
+function today() {
+  const now = new Date()
+  const mm = String(now.getMonth() + 1).padStart(2, '0')
+  const dd = String(now.getDate()).padStart(2, '0')
+  return `${now.getFullYear()}-${mm}-${dd}`
 }
 
 /** Las fechas se leen en español, no en ISO. */

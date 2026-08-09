@@ -32,7 +32,8 @@ class ProductHistoryServiceTest {
     void setUp() {
         products = mock(StoreProductRepository.class);
         observations = mock(PriceObservationRepository.class);
-        service = new ProductHistoryService(products, observations);
+        service = new ProductHistoryService(products, observations,
+                mock(com.juanluidos.ticketing.repository.DeclaredPriceRepository.class));
 
         Store store = new Store();
         store.setCode("MERCADONA");

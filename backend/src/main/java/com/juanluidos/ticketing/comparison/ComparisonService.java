@@ -2,6 +2,7 @@ package com.juanluidos.ticketing.comparison;
 
 import com.juanluidos.ticketing.domain.*;
 import com.juanluidos.ticketing.repository.ComparableGroupRepository;
+import com.juanluidos.ticketing.repository.DeclaredPriceRepository;
 import com.juanluidos.ticketing.repository.PriceObservationRepository;
 import com.juanluidos.ticketing.repository.StoreProductRepository;
 import com.juanluidos.ticketing.repository.UserProductPreferenceRepository;
@@ -36,14 +37,17 @@ public class ComparisonService {
     private final ComparableGroupRepository groups;
     private final StoreProductRepository products;
     private final PriceObservationRepository observations;
+    private final DeclaredPriceRepository declaredPrices;
     private final UserProductPreferenceRepository preferences;
 
     public ComparisonService(ComparableGroupRepository groups, StoreProductRepository products,
                              PriceObservationRepository observations,
+                             DeclaredPriceRepository declaredPrices,
                              UserProductPreferenceRepository preferences) {
         this.groups = groups;
         this.products = products;
         this.observations = observations;
+        this.declaredPrices = declaredPrices;
         this.preferences = preferences;
     }
 
@@ -65,12 +69,15 @@ public class ComparisonService {
             boolean preferred = member.getId().equals(preferredId);
             Optional<PriceObservation> latest = latestUsableObservation(member);
 
+            Optional<DeclaredPrice> declared =
+                    declaredPrices.findFirstByStoreProductIdOrderByDeclaredAtDesc(member.getId());
+
             if (latest.isPresent()) {
                 comparable.add(comparableEntry(member, latest.get(), preferred, preference));
-            } else if (member.getDeclaredUnitPrice() != null) {
+            } else if (declared.isPresent()) {
                 // Respaldo, nunca preferencia: un precio medido en un ticket gana
                 // siempre a uno tecleado, aunque el tecleado sea más reciente.
-                comparable.add(declaredEntry(member, preferred, preference));
+                comparable.add(declaredEntry(member, declared.get(), preferred, preference));
             } else {
                 notComparable.add(notComparableEntry(member, preferred));
             }
@@ -132,10 +139,11 @@ public class ComparisonService {
      * viaja marcada como declarada para que la interfaz no la disfrace de dato
      * medido.
      */
-    private GroupComparison.Entry declaredEntry(StoreProduct product, boolean preferred,
+    private GroupComparison.Entry declaredEntry(StoreProduct product, DeclaredPrice declared,
+                                                boolean preferred,
                                                 Optional<UserProductPreference> preference) {
-        LocalDate declaredAt = product.getDeclaredAt().toLocalDate();
-        BigDecimal price = product.getDeclaredUnitPrice();
+        LocalDate declaredAt = declared.getDeclaredAt();
+        BigDecimal price = declared.getUnitPrice();
 
         BigDecimal adjusted = preferred
                 ? preference.map(p -> applyMargin(price, p)).orElse(null)
@@ -147,7 +155,7 @@ public class ComparisonService {
                 product.getStore().getName(),
                 displayName(product),
                 price,
-                product.getDeclaredUnit(),
+                declared.getUnit(),
                 declaredAt,
                 (int) ChronoUnit.DAYS.between(declaredAt, LocalDate.now()),
                 false,
