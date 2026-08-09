@@ -215,9 +215,12 @@ function ProductHistory({ id, onClose }) {
   if (!history) return <p className="muted">Cargando…</p>
 
   const { product, points, metrics, notComparableReason } = history
-  const normalized = points.filter((p) => p.normalizedUnitPrice != null)
-  const sincePrevious = variation(normalized, 2)
-  const sinceFirst = variation(normalized, normalized.length)
+  // Un día, un punto. Tres tubos de pota de la misma bolsa no son tres momentos
+  // del precio, y dibujarlos separados inventa una subida que no ocurrió. Es la
+  // misma regla con la que el motor cuenta las subidas.
+  const byDay = collapseByDay(points)
+  const sincePrevious = variation(byDay, 2)
+  const sinceFirst = variation(byDay, byDay.length)
 
   return (
     <section>
@@ -247,6 +250,17 @@ function ProductHistory({ id, onClose }) {
             {' '}
             · lo tecleaste el {fmtDate(product.declaredAt)} · solo lo usa el comparador
           </span>
+          {/* Justo la confusión que provoca ver 15 €/kg arriba y 2,03 €/kg en la
+              tabla: si hay precio medido, el declarado no se usa, y callarlo
+              deja creer que el comparador está comparando otra cosa. */}
+          {metrics.lastNormalizedUnitPrice != null && (
+            <span className="warn small">
+              {' '}
+              — ahora mismo el comparador NO lo usa: hay precios medidos en tickets (
+              {fmt(metrics.lastNormalizedUnitPrice)} €/{metrics.normalizedUnit}) y esos ganan
+              siempre. Si ese precio medido no es real, quita el tamaño del envase.
+            </span>
+          )}
         </p>
       )}
 
@@ -295,16 +309,28 @@ function ProductHistory({ id, onClose }) {
             </dd>
             <p className="muted small">{ageLabel(metrics.daysSinceLast)}</p>
           </div>
-          <div className="hero-changes">
-            <p>
-              <span className="muted small">Desde la compra anterior</span>
-              <Change pct={sincePrevious} />
+          {/* Con un solo día de compras no hay variación que enseñar, y un
+              rótulo con el hueco al lado se lee como un dato que falta. */}
+          {sincePrevious == null && sinceFirst == null ? (
+            <p className="muted small">
+              Un solo día con precio: hará falta otra compra para saber si sube o baja.
             </p>
-            <p>
-              <span className="muted small">Desde la primera</span>
-              <Change pct={sinceFirst} />
-            </p>
-          </div>
+          ) : (
+            <div className="hero-changes">
+              {sincePrevious != null && (
+                <p>
+                  <span className="muted small">Desde la compra anterior</span>
+                  <Change pct={sincePrevious} />
+                </p>
+              )}
+              {sinceFirst != null && (
+                <p>
+                  <span className="muted small">Desde la primera</span>
+                  <Change pct={sinceFirst} />
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -335,7 +361,7 @@ function ProductHistory({ id, onClose }) {
         <Metric label="Gasto total" value={`${fmt(metrics.totalSpent)} €`} />
       </dl>
 
-      <PriceChart points={points} unit={metrics.normalizedUnit} />
+      <PriceChart points={byDay} unit={metrics.normalizedUnit} />
 
       <table>
         <thead>
@@ -654,7 +680,8 @@ function PriceChart({ points, unit }) {
         Evolución del precio normalizado
         <span className="muted small">
           {' '}
-          · las ofertas se pintan huecas: están en lo que pagaste, no en el precio de estantería
+          · un punto por día, aunque ese día compraras varias unidades · las ofertas se pintan
+          huecas: están en lo que pagaste, no en el precio de estantería
         </span>
       </figcaption>
       <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Evolución del precio">
@@ -714,6 +741,25 @@ function Metric({ label, value, hint }) {
       </dd>
     </div>
   )
+}
+
+/**
+ * Un punto por día, el último de ese día.
+ *
+ * <p>Una compra puede traer tres unidades del mismo producto en líneas
+ * separadas —tres tubos de pota— y eso no es una serie de precios: es una
+ * bolsa. Ponerlas en el eje del tiempo dibujaba una subida y una bajada que no
+ * ocurrieron nunca. El motor ya cuenta las subidas así; aquí solo se aplica la
+ * misma regla a lo que se ve.
+ */
+function collapseByDay(points) {
+  const byDay = new Map()
+  for (const point of points) {
+    if (point.normalizedUnitPrice != null) {
+      byDay.set(point.date, point)
+    }
+  }
+  return [...byDay.values()]
 }
 
 /** Variación porcentual entre el último punto y el que está n posiciones atrás. */
