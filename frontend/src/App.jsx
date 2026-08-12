@@ -65,6 +65,7 @@ export default function App() {
           (openTicketId ? (
             <ValidationView
               ticketId={openTicketId}
+              onOpenTicket={setOpenTicketId}
               onClose={() => {
                 setOpenTicketId(null)
                 setReloadToken((n) => n + 1)

@@ -7,7 +7,7 @@ const SOLD_BY = [
   ['VARIABLE_PIECE', 'pieza variable'],
 ]
 
-export default function ValidationView({ ticketId, onClose }) {
+export default function ValidationView({ ticketId, onClose, onOpenTicket }) {
   const [detail, setDetail] = useState(null)
   const [drafts, setDrafts] = useState({})
   const [error, setError] = useState(null)
@@ -16,6 +16,8 @@ export default function ValidationView({ ticketId, onClose }) {
   const [showImage, setShowImage] = useState(true)
 
   const extracting = detail?.summary.status === 'EXTRACTING' || detail?.summary.status === 'UPLOADED'
+  const referencedTicketId = detail?.summary.extractionError
+    ?.match(/ticket\s+#(\d+)/i)?.[1]
 
   useEffect(() => {
     let cancelled = false
@@ -144,7 +146,7 @@ export default function ValidationView({ ticketId, onClose }) {
         <button className="link" onClick={onClose}>
           ← Volver
         </button>
-        <strong>{detail.summary.storeName ?? 'súper sin identificar'}</strong>
+        <strong>Ticket #{detail.summary.id} · {detail.summary.storeName ?? 'súper sin identificar'}</strong>
         <span className="muted">
           {detail.summary.purchasedAt?.replace('T', ' ').slice(0, 16) ?? 'sin fecha'} ·{' '}
           {detail.summary.total != null ? `${fmt(detail.summary.total)} €` : 'sin total'} ·{' '}
@@ -187,6 +189,11 @@ export default function ValidationView({ ticketId, onClose }) {
       {detail.summary.status === 'EXTRACTION_ERROR' && (
         <div className="error">
           <p>{detail.summary.extractionError}</p>
+          {referencedTicketId && (
+            <button onClick={() => onOpenTicket?.(Number(referencedTicketId))}>
+              Abrir ticket #{referencedTicketId}
+            </button>
+          )}{' '}
           <button onClick={() => api.reextract(ticketId).then(() => setDetail(null))}>
             Reintentar extracción
           </button>
