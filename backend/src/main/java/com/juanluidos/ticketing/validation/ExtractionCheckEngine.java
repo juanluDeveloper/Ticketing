@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Las cinco comprobaciones sobre una extracción.
+ * Las comprobaciones aritméticas y heurísticas sobre una extracción.
  *
  * <p>Cada una necesita cierta redundancia impresa en el ticket, y esa redundancia
  * depende del formato del súper. El motor consulta las banderas de {@link Store}
@@ -52,6 +52,7 @@ public class ExtractionCheckEngine {
         outcomes.add(checkTaxLetterBases(ticket, lines, store, taxLetters, findings));
         outcomes.add(checkArticleCount(ticket, lines, store, findings));
         outcomes.add(checkTaxBreakdownAgainstTotal(ticket, findings));
+        outcomes.add(checkGeneralDiscountsAgainstAmountPaid(ticket, findings));
         outcomes.add(checkSoldByPlausibility(lines, findings));
         outcomes.add(checkRowTextCarriesAmount(lines, findings));
 
@@ -366,6 +367,49 @@ public class ExtractionCheckEngine {
         }
         return CheckReport.CheckOutcome.of(CheckCode.C5, ok, 0,
                 "bases+cuotas " + scale2(sum) + " contra total " + scale2(total));
+    }
+
+    // ------------------------------------------------------------------
+    // C6 — total de compra menos descuentos generales contra total pagado
+    // ------------------------------------------------------------------
+
+    private CheckReport.CheckOutcome checkGeneralDiscountsAgainstAmountPaid(
+            ExtractedTicket ticket, List<CheckReport.LineFinding> findings) {
+        if (ticket.totals() == null) {
+            return CheckReport.CheckOutcome.notApplicable(CheckCode.C6,
+                    "el ticket no trae totales");
+        }
+        BigDecimal total = ticket.totals().total();
+        BigDecimal amountPaid = ticket.totals().amountPaid();
+        if (total == null || amountPaid == null) {
+            return CheckReport.CheckOutcome.notApplicable(CheckCode.C6,
+                    "falta el total de compra o el total pagado");
+        }
+
+        List<ExtractedTicket.ExtractedGeneralDiscount> discounts = Optional
+                .ofNullable(ticket.totals().generalDiscounts()).orElse(List.of());
+        if (discounts.isEmpty() && within(total, amountPaid, amountTolerance)) {
+            return CheckReport.CheckOutcome.notApplicable(CheckCode.C6,
+                    "el ticket no trae descuentos generales");
+        }
+
+        BigDecimal discountTotal = discounts.stream()
+                .filter(java.util.Objects::nonNull)
+                .map(ExtractedTicket.ExtractedGeneralDiscount::amount)
+                .filter(java.util.Objects::nonNull)
+                .map(BigDecimal::abs)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal expectedPaid = total.subtract(discountTotal);
+        boolean ok = within(expectedPaid, amountPaid, amountTolerance);
+
+        if (!ok) {
+            findings.add(new CheckReport.LineFinding(null, CheckCode.C6, IssueSeverity.ERROR,
+                    "El total de compra menos los descuentos generales da "
+                            + scale2(expectedPaid) + ", pero el ticket imprime "
+                            + scale2(amountPaid) + " como total pagado.", expectedPaid, amountPaid));
+        }
+        return CheckReport.CheckOutcome.of(CheckCode.C6, ok, 0,
+                scale2(total) + " - " + scale2(discountTotal) + " = " + scale2(amountPaid));
     }
 
     // ------------------------------------------------------------------

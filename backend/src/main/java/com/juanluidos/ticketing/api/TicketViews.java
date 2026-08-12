@@ -17,7 +17,11 @@ public final class TicketViews {
             String storeName,
             LocalDateTime purchasedAt,
             String receiptNumber,
+            /** Total bruto de los artículos, antes de descuentos generales. */
             BigDecimal total,
+            BigDecimal generalDiscountTotal,
+            /** Importe final realmente cobrado. */
+            BigDecimal amountPaid,
             Integer articleCount,
             int lineCount,
             /** Fracción de líneas con alguna comprobación no trivial detrás. */
@@ -33,6 +37,7 @@ public final class TicketViews {
             List<CheckView> checks,
             List<IssueView> ticketIssues,
             List<TaxView> taxes,
+            List<GeneralDiscountView> generalDiscounts,
             /** Aviso que la UI enseña arriba cuando las checks apenas cubren nada. */
             String coverageWarning
     ) {
@@ -99,6 +104,9 @@ public final class TicketViews {
     }
 
     public record TaxView(BigDecimal rate, BigDecimal base, BigDecimal tax, String letter) {
+    }
+
+    public record GeneralDiscountView(Long id, Integer position, String description, BigDecimal amount) {
     }
 
     public record SizeSuggestion(BigDecimal value, String unit, String dimension) {

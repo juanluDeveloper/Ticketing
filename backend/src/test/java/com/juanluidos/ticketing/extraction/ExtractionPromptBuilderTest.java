@@ -30,6 +30,15 @@ class ExtractionPromptBuilderTest {
                 .contains("NO extraigas números de tarjeta");
     }
 
+    @Test
+    void separatesGeneralVouchersFromProductPrices() {
+        assertThat(builder.build(cashFresh()))
+                .contains("VALES CLIENTES")
+                .contains("TOTAL COMPRA 67,12")
+                .contains("TOTAL A PAGAR 63,60")
+                .contains("NO metas aquí ofertas o promociones de un producto");
+    }
+
     /** La regla del "12 HUEVOS" solo aplica donde el P.Unit es condicional. */
     @Test
     void explainsTheLeadingNumberTrapOnlyWhereItApplies() {

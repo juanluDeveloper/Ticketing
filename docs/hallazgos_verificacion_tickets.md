@@ -369,3 +369,32 @@ El enfoque local es viable. Dos cosas que el cliente tiene que forzar:
   restringida fuerza la forma, no la veracidad.
 - Recordatorio de §6: el modelo devuelve primero la fila física literal
   (`raw_row_text`) y los campos se derivan de esa cadena.
+
+---
+
+## 12. Descuentos generales: el total de compra no siempre es lo pagado
+
+Cash Fresh puede aplicar un vale de cliente generado por compras anteriores. En
+el ticket real del 24/06/2026 aparecen tres magnitudes distintas:
+
+| Concepto | Importe |
+|---|---:|
+| TOTAL COMPRA | 67,12 € |
+| VALES CLIENTES | −3,52 € |
+| TOTAL A PAGAR | 63,60 € |
+
+Las líneas y el desglose de IVA suman **67,12 €**, no 63,60 €. El vale se aplica
+después al conjunto de la compra y no pertenece a ningún producto concreto.
+Repartir los 3,52 € entre las líneas falsearía el histórico y haría parecer que
+cada producto tenía una promoción.
+
+Consecuencias del modelo:
+
+- `ticket.total` conserva el total bruto de los artículos.
+- `ticket_general_discount` guarda cada descuento general por separado, con su
+  texto impreso y el importe normalizado como magnitud positiva.
+- `ticket.amount_paid` guarda el total final cobrado.
+- La comprobación C6 exige
+  `total compra − Σ descuentos generales = total pagado`.
+- Los descuentos generales nunca generan `LineItem` ni `PriceObservation` y no
+  alteran el precio histórico de ningún producto.

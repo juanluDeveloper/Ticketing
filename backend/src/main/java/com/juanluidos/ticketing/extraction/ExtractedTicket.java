@@ -67,7 +67,22 @@ public record ExtractedTicket(
     }
 
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    public record ExtractedTotals(BigDecimal total, List<ExtractedTaxBreakdown> taxBreakdown) {
+    public record ExtractedTotals(
+            /** Total bruto de los artículos, antes de descuentos generales. */
+            BigDecimal total,
+            List<ExtractedGeneralDiscount> generalDiscounts,
+            /** Importe final cobrado después de los descuentos generales. */
+            BigDecimal amountPaid,
+            List<ExtractedTaxBreakdown> taxBreakdown
+    ) {
+        /** Compatibilidad para los tickets sin descuentos usados en tests y datos anteriores. */
+        public ExtractedTotals(BigDecimal total, List<ExtractedTaxBreakdown> taxBreakdown) {
+            this(total, List.of(), total, taxBreakdown);
+        }
+    }
+
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record ExtractedGeneralDiscount(String description, BigDecimal amount) {
     }
 
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)

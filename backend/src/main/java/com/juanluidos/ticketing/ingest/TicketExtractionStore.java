@@ -27,6 +27,7 @@ public class TicketExtractionStore {
     private final TicketRepository tickets;
     private final LineItemRepository lineItems;
     private final TicketTaxSummaryRepository taxSummaries;
+    private final TicketGeneralDiscountRepository generalDiscounts;
     private final TicketCheckResultRepository checkResults;
     private final ValidationIssueRepository issues;
     private final StoreRepository stores;
@@ -36,6 +37,7 @@ public class TicketExtractionStore {
 
     public TicketExtractionStore(TicketRepository tickets, LineItemRepository lineItems,
                                  TicketTaxSummaryRepository taxSummaries,
+                                 TicketGeneralDiscountRepository generalDiscounts,
                                  TicketCheckResultRepository checkResults,
                                  ValidationIssueRepository issues, StoreRepository stores,
                                  StoreTaxLetterRepository taxLetters, ProductMatcher matcher,
@@ -43,6 +45,7 @@ public class TicketExtractionStore {
         this.tickets = tickets;
         this.lineItems = lineItems;
         this.taxSummaries = taxSummaries;
+        this.generalDiscounts = generalDiscounts;
         this.checkResults = checkResults;
         this.issues = issues;
         this.stores = stores;
@@ -140,6 +143,7 @@ public class TicketExtractionStore {
         ticket.setReceiptNumber(receiptNumber);
         ticket.setPurchasedAt(ReceiptDateTimeParser.parse(extracted.purchasedAt()));
         ticket.setTotal(extracted.totals() == null ? null : extracted.totals().total());
+        ticket.setAmountPaid(resolveAmountPaid(extracted.totals()));
         ticket.setArticleCount(extracted.articleCount());
         if (extracted.currency() != null && extracted.currency().length() == 3) {
             ticket.setCurrency(extracted.currency().toUpperCase());
@@ -156,6 +160,7 @@ public class TicketExtractionStore {
         lineItems.flush();
 
         List<LineItem> saved = saveLines(ticket, store, extracted);
+        saveGeneralDiscounts(ticket, extracted);
         saveTaxSummary(ticket, extracted);
 
         // Se evalúa lo GUARDADO, no lo que devolvió el modelo. Al guardar se
@@ -166,7 +171,8 @@ public class TicketExtractionStore {
         // que ve la persona.
         CheckReport report = checkEngine.evaluate(
                 com.juanluidos.ticketing.validation.PersistedTicketMapper.toExtracted(
-                        ticket, saved, taxSummaries.findByTicketId(ticket.getId())),
+                        ticket, saved, taxSummaries.findByTicketId(ticket.getId()),
+                        generalDiscounts.findByTicketIdOrderByPositionAsc(ticket.getId())),
                 store,
                 store == null ? List.of() : taxLetters.findByStoreId(store.getId()));
         saveReport(ticket, saved, report);
@@ -290,6 +296,49 @@ public class TicketExtractionStore {
             summary.setTaxAmount(row.tax());
             taxSummaries.save(summary);
         }
+    }
+
+    private void saveGeneralDiscounts(Ticket ticket, ExtractedTicket extracted) {
+        generalDiscounts.deleteAll(
+                generalDiscounts.findByTicketIdOrderByPositionAsc(ticket.getId()));
+        generalDiscounts.flush();
+        if (extracted.totals() == null || extracted.totals().generalDiscounts() == null) {
+            return;
+        }
+
+        int position = 1;
+        for (ExtractedTicket.ExtractedGeneralDiscount source : extracted.totals().generalDiscounts()) {
+            if (source == null || source.amount() == null || source.amount().signum() == 0) {
+                continue;
+            }
+            TicketGeneralDiscount discount = new TicketGeneralDiscount();
+            discount.setTicket(ticket);
+            discount.setPosition(position++);
+            discount.setDescription(blankToNull(source.description()) == null
+                    ? "Descuento general"
+                    : source.description().trim());
+            discount.setAmount(source.amount().abs());
+            generalDiscounts.save(discount);
+        }
+    }
+
+    private BigDecimal resolveAmountPaid(ExtractedTicket.ExtractedTotals totals) {
+        if (totals == null) {
+            return null;
+        }
+        if (totals.amountPaid() != null) {
+            return totals.amountPaid();
+        }
+        if (totals.total() == null) {
+            return null;
+        }
+        BigDecimal discountTotal = Optional.ofNullable(totals.generalDiscounts()).orElse(List.of()).stream()
+                .filter(java.util.Objects::nonNull)
+                .map(ExtractedTicket.ExtractedGeneralDiscount::amount)
+                .filter(java.util.Objects::nonNull)
+                .map(BigDecimal::abs)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return totals.total().subtract(discountTotal);
     }
 
     private void saveReport(Ticket ticket, List<LineItem> lines, CheckReport report) {

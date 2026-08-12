@@ -48,6 +48,10 @@ public class Ticket {
     @Column(precision = 12, scale = 4)
     private BigDecimal total;
 
+    /** Importe final después de aplicar descuentos generales como vales cliente. */
+    @Column(name = "amount_paid", precision = 12, scale = 4)
+    private BigDecimal amountPaid;
+
     /** Recuento de artículos impreso. Solo Xinya lo trae; alimenta C4. */
     @Column(name = "article_count")
     private Integer articleCount;

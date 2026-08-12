@@ -18,18 +18,21 @@ public class TicketViewAssembler {
     private final TicketCheckResultRepository checkResults;
     private final ValidationIssueRepository issues;
     private final TicketTaxSummaryRepository taxSummaries;
+    private final TicketGeneralDiscountRepository generalDiscounts;
     private final PackageSizeParser sizeParser;
 
     public TicketViewAssembler(TicketRepository tickets, LineItemRepository lineItems,
                                TicketCheckResultRepository checkResults,
                                ValidationIssueRepository issues,
                                TicketTaxSummaryRepository taxSummaries,
+                               TicketGeneralDiscountRepository generalDiscounts,
                                PackageSizeParser sizeParser) {
         this.tickets = tickets;
         this.lineItems = lineItems;
         this.checkResults = checkResults;
         this.issues = issues;
         this.taxSummaries = taxSummaries;
+        this.generalDiscounts = generalDiscounts;
         this.sizeParser = sizeParser;
     }
 
@@ -79,8 +82,14 @@ public class TicketViewAssembler {
                         t.getRate(), t.getBaseAmount(), t.getTaxAmount(), t.getTaxLetter()))
                 .toList();
 
+        List<TicketViews.GeneralDiscountView> discounts = generalDiscounts
+                .findByTicketIdOrderByPositionAsc(ticket.getId()).stream()
+                .map(d -> new TicketViews.GeneralDiscountView(
+                        d.getId(), d.getPosition(), d.getDescription(), d.getAmount()))
+                .toList();
+
         return new TicketViews.TicketDetail(
-                toSummary(ticket, lines.size()), lineViews, checks, ticketLevel, taxes,
+                toSummary(ticket, lines.size()), lineViews, checks, ticketLevel, taxes, discounts,
                 coverageWarning(ticket, lines.size()));
     }
 
@@ -116,6 +125,10 @@ public class TicketViewAssembler {
                 ticket.getPurchasedAt(),
                 ticket.getReceiptNumber(),
                 ticket.getTotal(),
+                generalDiscounts.findByTicketIdOrderByPositionAsc(ticket.getId()).stream()
+                        .map(TicketGeneralDiscount::getAmount)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add),
+                ticket.getAmountPaid(),
                 ticket.getArticleCount(),
                 lineCount,
                 ticket.getCoverageRatio(),

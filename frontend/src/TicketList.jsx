@@ -15,7 +15,7 @@ const SORT_VALUE = {
   store: (ticket) => ticket.storeName,
   purchasedAt: (ticket) => ticket.purchasedAt,
   receiptNumber: (ticket) => ticket.receiptNumber,
-  total: (ticket) => ticket.total,
+  total: (ticket) => ticket.amountPaid ?? ticket.total,
   lineCount: (ticket) => ticket.lineCount,
 }
 
@@ -33,7 +33,7 @@ export default function TicketList({ reloadToken, onOpen }) {
    * y no había forma de quitar la mala.
    */
   async function remove(ticket) {
-    const label = `#${ticket.id} · ${ticket.storeName ?? 'ticket'} · ${ticket.total ?? '—'} €`
+    const label = `#${ticket.id} · ${ticket.storeName ?? 'ticket'} · ${ticket.amountPaid ?? ticket.total ?? '—'} €`
     if (!window.confirm(`¿Borrar el ticket ${label}?`)) return
 
     setError(null)
@@ -96,6 +96,9 @@ export default function TicketList({ reloadToken, onOpen }) {
         formatDate(ticket.purchasedAt),
         ticket.total,
         ticket.total == null ? null : fmt(ticket.total),
+        ticket.generalDiscountTotal,
+        ticket.amountPaid,
+        ticket.amountPaid == null ? null : fmt(ticket.amountPaid),
         ticket.lineCount,
         STATUS_LABEL[ticket.status] ?? ticket.status,
         ticket.extractionError,
@@ -181,18 +184,33 @@ export default function TicketList({ reloadToken, onOpen }) {
                 <SortHeader column="store" label="Súper" sort={sort} onSort={changeSort} />
                 <SortHeader column="purchasedAt" label="Fecha" sort={sort} onSort={changeSort} />
                 <SortHeader column="receiptNumber" label="N.º recibo" sort={sort} onSort={changeSort} />
-                <SortHeader column="total" label="Total" sort={sort} onSort={changeSort} right />
+                <SortHeader column="total" label="Pagado" sort={sort} onSort={changeSort} right />
                 <SortHeader column="lineCount" label="Líneas" sort={sort} onSort={changeSort} right />
                 <th className="ticket-actions-head">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {visibleTickets.map((ticket) => (
-                <tr key={ticket.id} className="ticket-data-row">
+                <tr
+                  key={ticket.id}
+                  className="ticket-data-row"
+                  role="link"
+                  tabIndex={0}
+                  aria-label={`Abrir ticket #${ticket.id}`}
+                  onClick={(event) => {
+                    if (event.target.closest('button, a, input, select, textarea')) return
+                    onOpen(ticket.id)
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      onOpen(ticket.id)
+                    }
+                  }}
+                >
                   <td data-label="ID" className="ticket-cell-id">
-                    <button className="link ticket-id" onClick={() => onOpen(ticket.id)}>
-                      #{ticket.id}
-                    </button>
+                    <span className="ticket-id">#{ticket.id}</span>
                   </td>
                   <td data-label="Estado" className="ticket-cell-status">
                     <span className={`badge ${ticket.status.toLowerCase()}`}>
@@ -200,9 +218,9 @@ export default function TicketList({ reloadToken, onOpen }) {
                     </span>
                   </td>
                   <td data-label="Súper" className="ticket-cell-store">
-                    <button className="link ticket-store" onClick={() => onOpen(ticket.id)}>
+                    <span className="ticket-store">
                       {ticket.storeName ?? 'súper sin identificar'}
-                    </button>
+                    </span>
                     {ticket.extractionError && (
                       <TicketError message={ticket.extractionError} onOpen={onOpen} />
                     )}
@@ -213,17 +231,35 @@ export default function TicketList({ reloadToken, onOpen }) {
                   <td data-label="N.º recibo" className="ticket-receipt">
                     {ticket.receiptNumber ?? '—'}
                   </td>
-                  <td data-label="Total" className="right ticket-total">
-                    {ticket.total != null ? `${fmt(ticket.total)} €` : '—'}
+                  <td data-label="Pagado" className="right ticket-total">
+                    {ticket.amountPaid != null || ticket.total != null
+                      ? `${fmt(ticket.amountPaid ?? ticket.total)} €`
+                      : '—'}
+                    {ticket.generalDiscountTotal > 0 && (
+                      <span className="ticket-discount-note">
+                        de {fmt(ticket.total)} € · −{fmt(ticket.generalDiscountTotal)} €
+                      </span>
+                    )}
                   </td>
                   <td data-label="Líneas" className="right">{ticket.lineCount}</td>
                   <td data-label="Acciones" className="ticket-actions">
-                    <button className="link" onClick={() => onOpen(ticket.id)}>Abrir</button>
+                    <button
+                      className="link"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onOpen(ticket.id)
+                      }}
+                    >
+                      Abrir
+                    </button>
                     <button
                       className="link danger"
                       title={`Borrar el ticket #${ticket.id}`}
                       disabled={ticket.status === 'EXTRACTING'}
-                      onClick={() => remove(ticket)}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        remove(ticket)
+                      }}
                     >
                       Borrar
                     </button>
@@ -262,7 +298,13 @@ function TicketError({ message, onOpen }) {
     <span className="ticket-row-error">
       {message}
       {referencedId && (
-        <button className="link" onClick={() => onOpen(Number(referencedId))}>
+        <button
+          className="link"
+          onClick={(event) => {
+            event.stopPropagation()
+            onOpen(Number(referencedId))
+          }}
+        >
           Abrir #{referencedId}
         </button>
       )}

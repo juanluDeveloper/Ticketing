@@ -89,9 +89,29 @@
     "totals": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["total", "tax_breakdown"],
+      "required": ["total", "general_discounts", "amount_paid", "tax_breakdown"],
       "properties": {
-        "total": { "type": "number" },
+        "total": {
+          "type": "number",
+          "description": "Total bruto de los artículos antes de descuentos generales. Debe cuadrar con las líneas y con bases más cuotas de IVA."
+        },
+        "general_discounts": {
+          "type": "array",
+          "description": "Descuentos sobre la compra completa, nunca promociones de un producto. El importe se devuelve positivo aunque esté impreso con signo menos.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["description", "amount"],
+            "properties": {
+              "description": { "type": "string" },
+              "amount": { "type": "number", "exclusiveMinimum": 0 }
+            }
+          }
+        },
+        "amount_paid": {
+          "type": "number",
+          "description": "Importe final cobrado. Si no hay descuentos generales ni un total final separado, coincide con total."
+        },
         "tax_breakdown": {
           "type": "array",
           "items": {

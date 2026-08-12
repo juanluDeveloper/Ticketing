@@ -3,6 +3,7 @@ package com.juanluidos.ticketing.validation;
 import com.juanluidos.ticketing.domain.LineItem;
 import com.juanluidos.ticketing.domain.SoldBy;
 import com.juanluidos.ticketing.domain.Ticket;
+import com.juanluidos.ticketing.domain.TicketGeneralDiscount;
 import com.juanluidos.ticketing.domain.TicketTaxSummary;
 import com.juanluidos.ticketing.extraction.ExtractedTicket;
 
@@ -22,7 +23,8 @@ public final class PersistedTicketMapper {
     }
 
     public static ExtractedTicket toExtracted(Ticket ticket, List<LineItem> lines,
-                                              List<TicketTaxSummary> taxes) {
+                                              List<TicketTaxSummary> taxes,
+                                              List<TicketGeneralDiscount> discounts) {
         List<ExtractedTicket.ExtractedLineItem> mapped = lines.stream()
                 .map(PersistedTicketMapper::toLine)
                 .toList();
@@ -30,6 +32,11 @@ public final class PersistedTicketMapper {
         List<ExtractedTicket.ExtractedTaxBreakdown> breakdown = taxes.stream()
                 .map(t -> new ExtractedTicket.ExtractedTaxBreakdown(
                         t.getRate(), t.getBaseAmount(), t.getTaxAmount()))
+                .toList();
+
+        List<ExtractedTicket.ExtractedGeneralDiscount> mappedDiscounts = discounts.stream()
+                .map(d -> new ExtractedTicket.ExtractedGeneralDiscount(
+                        d.getDescription(), d.getAmount()))
                 .toList();
 
         return new ExtractedTicket(
@@ -43,7 +50,8 @@ public final class PersistedTicketMapper {
                 ticket.getStore() == null ? "," : ticket.getStore().getDecimalSeparator(),
                 ticket.getArticleCount(),
                 mapped,
-                new ExtractedTicket.ExtractedTotals(ticket.getTotal(), breakdown));
+                new ExtractedTicket.ExtractedTotals(
+                        ticket.getTotal(), mappedDiscounts, ticket.getAmountPaid(), breakdown));
     }
 
     private static ExtractedTicket.ExtractedLineItem toLine(LineItem line) {

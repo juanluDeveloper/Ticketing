@@ -69,6 +69,17 @@ public class ExtractionPromptBuilder {
                 el ticket esté en chino.
                 - En tax_breakdown, rate va como FRACCIÓN, no como porcentaje: el 21% se escribe \
                 0.21, el 10% se escribe 0.10 y el 4% se escribe 0.04.
+                - totals.total es el TOTAL BRUTO DE LOS ARTÍCULOS, antes de cualquier descuento \
+                general. Es el número que tiene que cuadrar tanto con la suma de line_total como \
+                con las bases más las cuotas de IVA.
+                - general_discounts contiene SOLO reducciones aplicadas después al conjunto de la \
+                compra, como "VALES CLIENTES". NO metas aquí ofertas o promociones de un producto. \
+                Tampoco crees una line_item falsa para el vale. Copia su descripción y devuelve \
+                amount como magnitud POSITIVA aunque el papel lo imprima con signo menos.
+                - amount_paid es el importe final cobrado después de esos descuentos. Comprueba la \
+                ecuación totals.total - suma(general_discounts.amount) = amount_paid. Ejemplo real: \
+                TOTAL COMPRA 67,12; VALES CLIENTES -3,52; TOTAL A PAGAR 63,60. Si no hay descuentos \
+                ni un total final separado, amount_paid coincide con totals.total.
                 - tax_letter es UNA sola letra mayúscula, o null. Nunca una palabra ni un trozo de \
                 la descripción.
                 - NO extraigas números de tarjeta, códigos de autorización, ARC ni AID. No \

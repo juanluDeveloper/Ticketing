@@ -80,6 +80,8 @@ class ExtractionSchemaTest {
         assertThat(ticket.decimalSeparator()).isEqualTo(",");
         assertThat(ticket.articleCount()).isNull();
         assertThat(ticket.totals().total()).isEqualByComparingTo(new BigDecimal("63.16"));
+        assertThat(ticket.totals().generalDiscounts()).isEmpty();
+        assertThat(ticket.totals().amountPaid()).isEqualByComparingTo(new BigDecimal("63.16"));
         assertThat(ticket.totals().taxBreakdown()).hasSize(1);
 
         var mango = ticket.lineItems().getFirst();
@@ -96,6 +98,33 @@ class ExtractionSchemaTest {
         var pota = ticket.lineItems().get(1);
         assertThat(pota.soldBy()).isEqualTo("piece_variable");
         assertThat(pota.weight()).isNull();
+    }
+
+    @Test
+    void mapsAGeneralCustomerVoucherSeparatelyFromProductLines() throws Exception {
+        String json = mercadonaJson()
+                .replace("\"total\": 63.16,", "\"total\": 67.12,")
+                .replace("\"general_discounts\": [],",
+                        "\"general_discounts\": [{ \"description\": \"VALES CLIENTES\", \"amount\": 3.52 }],")
+                .replace("\"amount_paid\": 63.16,", "\"amount_paid\": 63.60,");
+
+        assertThat(schemas.validate(mapper.readTree(json))).isEmpty();
+        ExtractedTicket ticket = mapper.readValue(json, ExtractedTicket.class);
+
+        assertThat(ticket.totals().total()).isEqualByComparingTo("67.12");
+        assertThat(ticket.totals().generalDiscounts()).singleElement().satisfies(discount -> {
+            assertThat(discount.description()).isEqualTo("VALES CLIENTES");
+            assertThat(discount.amount()).isEqualByComparingTo("3.52");
+        });
+        assertThat(ticket.totals().amountPaid()).isEqualByComparingTo("63.60");
+    }
+
+    @Test
+    void rejectsANegativeNormalizedGeneralDiscount() throws Exception {
+        String json = mercadonaJson().replace("\"general_discounts\": [],",
+                "\"general_discounts\": [{ \"description\": \"VALES CLIENTES\", \"amount\": -3.52 }],");
+
+        assertThat(schemas.validate(mapper.readTree(json))).isNotEmpty();
     }
 
     /** Línea del Mercadona real: MANGO a peso 1,394 kg x 3,05 €/kg = 4,25. */
@@ -142,6 +171,8 @@ class ExtractionSchemaTest {
                   ],
                   "totals": {
                     "total": 63.16,
+                    "general_discounts": [],
+                    "amount_paid": 63.16,
                     "tax_breakdown": [
                       { "rate": 0.04, "base": 13.38, "tax": 0.54 }
                     ]

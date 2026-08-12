@@ -17,10 +17,16 @@ public record ValidationRequest(
         LocalDateTime purchasedAt,
         String receiptNumber,
         BigDecimal total,
+        List<GeneralDiscountInput> generalDiscounts,
+        BigDecimal amountPaid,
         Integer articleCount,
         List<LineUpdate> lines,
         boolean confirm
 ) {
+
+    /** Descuento de la compra completa; amount es siempre una magnitud positiva. */
+    public record GeneralDiscountInput(String description, BigDecimal amount) {
+    }
 
     public record LineUpdate(
             Long lineItemId,

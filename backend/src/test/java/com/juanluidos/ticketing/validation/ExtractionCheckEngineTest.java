@@ -6,6 +6,7 @@ import com.juanluidos.ticketing.domain.Store;
 import com.juanluidos.ticketing.domain.StoreTaxLetter;
 import com.juanluidos.ticketing.extraction.ExtractedTicket;
 import com.juanluidos.ticketing.extraction.ExtractedTicket.ExtractedLineItem;
+import com.juanluidos.ticketing.extraction.ExtractedTicket.ExtractedGeneralDiscount;
 import com.juanluidos.ticketing.extraction.ExtractedTicket.ExtractedTaxBreakdown;
 import com.juanluidos.ticketing.extraction.ExtractedTicket.ExtractedTotals;
 import com.juanluidos.ticketing.extraction.ExtractedTicket.ExtractedWeight;
@@ -57,6 +58,42 @@ class ExtractionCheckEngineTest {
         CheckReport.CheckOutcome c4 = outcome(report, CheckCode.C4);
         assertThat(c4.applicable()).isFalse();
         assertThat(c4.passed()).isNull();
+    }
+
+    @Test
+    void c6AcceptsTheCashFreshCustomerVoucherFromTheExample() {
+        ExtractedTicket ticket = new ExtractedTicket(
+                new ExtractedTicket.ExtractedStore("Cash Fresh", "B41544503", null),
+                "2026-06-24T21:00:01", "260624/219/104/0432", "EUR", ",", null,
+                List.of(cf("COMPRA", 1, "67.12", "67.12", "B")),
+                new ExtractedTotals(
+                        new BigDecimal("67.12"),
+                        List.of(new ExtractedGeneralDiscount("VALES CLIENTES", new BigDecimal("3.52"))),
+                        new BigDecimal("63.60"),
+                        List.of()));
+
+        CheckReport report = engine.evaluate(ticket, cashFresh(), cashFreshLetters());
+
+        assertThat(outcome(report, CheckCode.C6).passed()).isTrue();
+        assertThat(outcome(report, CheckCode.C6).detail()).isEqualTo("67.12 - 3.52 = 63.60");
+    }
+
+    @Test
+    void c6RejectsAMisreadAmountPaid() {
+        ExtractedTicket ticket = new ExtractedTicket(
+                new ExtractedTicket.ExtractedStore("Cash Fresh", "B41544503", null),
+                "2026-06-24T21:00:01", "260624/219/104/0432", "EUR", ",", null,
+                List.of(cf("COMPRA", 1, "67.12", "67.12", "B")),
+                new ExtractedTotals(
+                        new BigDecimal("67.12"),
+                        List.of(new ExtractedGeneralDiscount("VALES CLIENTES", new BigDecimal("3.52"))),
+                        new BigDecimal("67.12"),
+                        List.of()));
+
+        CheckReport report = engine.evaluate(ticket, cashFresh(), cashFreshLetters());
+
+        assertThat(outcome(report, CheckCode.C6).passed()).isFalse();
+        assertThat(report.findings()).anyMatch(f -> f.code() == CheckCode.C6);
     }
 
     /**

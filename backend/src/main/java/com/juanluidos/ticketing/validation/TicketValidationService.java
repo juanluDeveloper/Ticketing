@@ -30,6 +30,7 @@ public class TicketValidationService {
     private final TicketRepository tickets;
     private final LineItemRepository lineItems;
     private final TicketTaxSummaryRepository taxSummaries;
+    private final TicketGeneralDiscountRepository generalDiscounts;
     private final TicketCheckResultRepository checkResults;
     private final ValidationIssueRepository issues;
     private final PriceObservationRepository observations;
@@ -42,6 +43,7 @@ public class TicketValidationService {
 
     public TicketValidationService(TicketRepository tickets, LineItemRepository lineItems,
                                   TicketTaxSummaryRepository taxSummaries,
+                                  TicketGeneralDiscountRepository generalDiscounts,
                                   TicketCheckResultRepository checkResults,
                                   ValidationIssueRepository issues,
                                   PriceObservationRepository observations,
@@ -52,6 +54,7 @@ public class TicketValidationService {
         this.tickets = tickets;
         this.lineItems = lineItems;
         this.taxSummaries = taxSummaries;
+        this.generalDiscounts = generalDiscounts;
         this.checkResults = checkResults;
         this.issues = issues;
         this.observations = observations;
@@ -71,6 +74,7 @@ public class TicketValidationService {
         }
 
         applyTicketFields(ticket, request);
+        applyGeneralDiscounts(ticket, request.generalDiscounts());
         List<LineItem> lines = applyLines(ticket, request);
         CheckReport report = reevaluate(ticket, lines);
 
@@ -92,8 +96,36 @@ public class TicketValidationService {
         if (request.total() != null) {
             ticket.setTotal(request.total());
         }
+        if (request.amountPaid() != null) {
+            ticket.setAmountPaid(request.amountPaid());
+        }
         if (request.articleCount() != null) {
             ticket.setArticleCount(request.articleCount());
+        }
+    }
+
+    private void applyGeneralDiscounts(Ticket ticket,
+                                       List<ValidationRequest.GeneralDiscountInput> updates) {
+        if (updates == null) {
+            return;
+        }
+        generalDiscounts.deleteAll(
+                generalDiscounts.findByTicketIdOrderByPositionAsc(ticket.getId()));
+        generalDiscounts.flush();
+
+        int position = 1;
+        for (ValidationRequest.GeneralDiscountInput update : updates) {
+            if (update == null || update.amount() == null || update.amount().signum() == 0) {
+                continue;
+            }
+            TicketGeneralDiscount discount = new TicketGeneralDiscount();
+            discount.setTicket(ticket);
+            discount.setPosition(position++);
+            discount.setDescription(update.description() == null || update.description().isBlank()
+                    ? "Descuento general"
+                    : update.description().trim());
+            discount.setAmount(update.amount().abs());
+            generalDiscounts.save(discount);
         }
     }
 
@@ -223,7 +255,9 @@ public class TicketValidationService {
 
     private CheckReport reevaluate(Ticket ticket, List<LineItem> lines) {
         List<TicketTaxSummary> taxes = taxSummaries.findByTicketId(ticket.getId());
-        ExtractedTicket rebuilt = PersistedTicketMapper.toExtracted(ticket, lines, taxes);
+        ExtractedTicket rebuilt = PersistedTicketMapper.toExtracted(
+                ticket, lines, taxes,
+                generalDiscounts.findByTicketIdOrderByPositionAsc(ticket.getId()));
 
         CheckReport report = checkEngine.evaluate(rebuilt, ticket.getStore(),
                 ticket.getStore() == null ? List.of() : taxLetters.findByStoreId(ticket.getStore().getId()));

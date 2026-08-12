@@ -35,6 +35,9 @@ public enum CheckCode {
     /** Σ bases + Σ cuotas == total. Valida la lectura de la tabla de IVA. */
     C5("Bases más cuotas contra el total"),
 
+    /** Total bruto menos descuentos generales == importe final pagado. */
+    C6("Total de compra menos descuentos contra total pagado"),
+
     /**
      * Heurística, no aritmética: la letra de IVA de la línea no coincide con la
      * habitual del producto ya conocido. Requiere histórico, así que no aporta

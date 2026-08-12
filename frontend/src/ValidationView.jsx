@@ -14,6 +14,7 @@ export default function ValidationView({ ticketId, onClose, onOpenTicket }) {
   const [busy, setBusy] = useState(false)
   const [imageUrl, setImageUrl] = useState(null)
   const [showImage, setShowImage] = useState(true)
+  const [paymentDraft, setPaymentDraft] = useState(null)
 
   const extracting = detail?.summary.status === 'EXTRACTING' || detail?.summary.status === 'UPLOADED'
   const referencedTicketId = detail?.summary.extractionError
@@ -21,11 +22,15 @@ export default function ValidationView({ ticketId, onClose, onOpenTicket }) {
 
   useEffect(() => {
     let cancelled = false
+    setPaymentDraft(null)
 
     async function load() {
       try {
         const data = await api.getTicket(ticketId)
-        if (!cancelled) setDetail(data)
+        if (!cancelled) {
+          setDetail(data)
+          setPaymentDraft(paymentDraftOf(data))
+        }
       } catch (e) {
         if (!cancelled) setError(e.message)
       }
@@ -87,7 +92,9 @@ export default function ValidationView({ ticketId, onClose, onOpenTicket }) {
       const updated = await api.validate(ticketId, {
         purchasedAt: detail.summary.purchasedAt,
         receiptNumber: detail.summary.receiptNumber,
-        total: detail.summary.total,
+        total: decimalOrNull(paymentDraft?.total ?? detail.summary.total),
+        generalDiscounts: normalizedDiscounts(paymentDraft?.generalDiscounts ?? detail.generalDiscounts),
+        amountPaid: decimalOrNull(paymentDraft?.amountPaid ?? detail.summary.amountPaid),
         articleCount: detail.summary.articleCount,
         confirm: false,
         lines: unassigned.map((l) => ({
@@ -103,6 +110,7 @@ export default function ValidationView({ ticketId, onClose, onOpenTicket }) {
         })),
       })
       setDetail(updated)
+      setPaymentDraft(paymentDraftOf(updated))
       setDrafts({})
     } catch (e) {
       setError(e.message)
@@ -118,7 +126,9 @@ export default function ValidationView({ ticketId, onClose, onOpenTicket }) {
       const payload = {
         purchasedAt: detail.summary.purchasedAt,
         receiptNumber: detail.summary.receiptNumber,
-        total: detail.summary.total,
+        total: decimalOrNull(paymentDraft?.total ?? detail.summary.total),
+        generalDiscounts: normalizedDiscounts(paymentDraft?.generalDiscounts ?? detail.generalDiscounts),
+        amountPaid: decimalOrNull(paymentDraft?.amountPaid ?? detail.summary.amountPaid),
         articleCount: detail.summary.articleCount,
         confirm,
         lines: Object.entries(drafts).map(([lineItemId, changes]) => ({
@@ -128,6 +138,7 @@ export default function ValidationView({ ticketId, onClose, onOpenTicket }) {
       }
       const updated = await api.validate(ticketId, payload)
       setDetail(updated)
+      setPaymentDraft(paymentDraftOf(updated))
       setDrafts({})
       if (confirm && updated.summary.status === 'VALIDATED') onClose()
     } catch (e) {
@@ -149,7 +160,9 @@ export default function ValidationView({ ticketId, onClose, onOpenTicket }) {
         <strong>Ticket #{detail.summary.id} · {detail.summary.storeName ?? 'súper sin identificar'}</strong>
         <span className="muted">
           {detail.summary.purchasedAt?.replace('T', ' ').slice(0, 16) ?? 'sin fecha'} ·{' '}
-          {detail.summary.total != null ? `${fmt(detail.summary.total)} €` : 'sin total'} ·{' '}
+          {detail.summary.amountPaid != null || detail.summary.total != null
+            ? `${fmt(detail.summary.amountPaid ?? detail.summary.total)} € pagados`
+            : 'sin total'} ·{' '}
           {detail.summary.lineCount} líneas
         </span>
         <button className="link" onClick={() => setShowImage((v) => !v)}>
@@ -214,6 +227,12 @@ export default function ValidationView({ ticketId, onClose, onOpenTicket }) {
         </ul>
       )}
 
+      <PaymentSummary
+        value={paymentDraft ?? paymentDraftOf(detail)}
+        onChange={setPaymentDraft}
+        disabled={extracting || busy}
+      />
+
       <div className={showImage ? 'split' : ''}>
         <div className="lines">
           <table>
@@ -273,6 +292,144 @@ export default function ValidationView({ ticketId, onClose, onOpenTicket }) {
       </div>
     </section>
   )
+}
+
+function PaymentSummary({ value, onChange, disabled }) {
+  const discounts = value.generalDiscounts ?? []
+  const calculatedPaid = calculatePaid(value.total, discounts)
+
+  function updateDiscount(index, field, nextValue) {
+    onChange({
+      ...value,
+      generalDiscounts: discounts.map((discount, current) =>
+        current === index ? { ...discount, [field]: nextValue } : discount),
+    })
+  }
+
+  return (
+    <section className="payment-summary" aria-label="Totales y descuentos generales">
+      <h3>Totales de la compra</h3>
+      <div className="payment-summary-grid">
+        <label>
+          Total compra
+          <MoneyInput
+            value={value.total}
+            onChange={(total) => onChange({ ...value, total })}
+            disabled={disabled}
+          />
+        </label>
+
+        <div className="general-discounts">
+          <span className="payment-label">Descuentos generales</span>
+          {discounts.length === 0 && <span className="muted small">Ninguno</span>}
+          {discounts.map((discount, index) => (
+            <div className="general-discount-row" key={discount.id ?? index}>
+              <input
+                aria-label={`Descripción del descuento ${index + 1}`}
+                placeholder="Ej. VALES CLIENTES"
+                value={discount.description ?? ''}
+                disabled={disabled}
+                onChange={(event) => updateDiscount(index, 'description', event.target.value)}
+              />
+              <MoneyInput
+                ariaLabel={`Importe del descuento ${index + 1}`}
+                value={discount.amount}
+                disabled={disabled}
+                onChange={(amount) => updateDiscount(index, 'amount', amount)}
+              />
+              <button
+                className="link danger"
+                disabled={disabled}
+                onClick={() => onChange({
+                  ...value,
+                  generalDiscounts: discounts.filter((_, current) => current !== index),
+                })}
+              >
+                Quitar
+              </button>
+            </div>
+          ))}
+          <button
+            className="link"
+            disabled={disabled}
+            onClick={() => onChange({
+              ...value,
+              generalDiscounts: [...discounts, { description: '', amount: '' }],
+            })}
+          >
+            + Añadir descuento general
+          </button>
+        </div>
+
+        <label>
+          Total pagado
+          <MoneyInput
+            value={value.amountPaid}
+            onChange={(amountPaid) => onChange({ ...value, amountPaid })}
+            disabled={disabled}
+          />
+        </label>
+      </div>
+      {calculatedPaid != null && (
+        <p className="muted small payment-equation">
+          Comprobación: {fmt(value.total)} € − {fmt(sumDiscounts(discounts))} € ={' '}
+          {fmt(calculatedPaid)} €
+        </p>
+      )}
+    </section>
+  )
+}
+
+function MoneyInput({ value, onChange, disabled, ariaLabel }) {
+  return (
+    <span className="money-input">
+      <input
+        className="num"
+        inputMode="decimal"
+        aria-label={ariaLabel}
+        value={value ?? ''}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      <span>€</span>
+    </span>
+  )
+}
+
+function paymentDraftOf(detail) {
+  return {
+    total: detail?.summary.total ?? '',
+    amountPaid: detail?.summary.amountPaid ?? detail?.summary.total ?? '',
+    generalDiscounts: (detail?.generalDiscounts ?? []).map((discount) => ({ ...discount })),
+  }
+}
+
+function normalizedDiscounts(discounts) {
+  return (discounts ?? [])
+    .filter((discount) => decimalOrNull(discount.amount) != null)
+    .map((discount) => ({
+      description: discount.description?.trim() || 'Descuento general',
+      amount: decimalOrNull(discount.amount),
+    }))
+}
+
+function decimalOrNull(value) {
+  if (value == null || value === '') return null
+  return typeof value === 'string' ? value.trim().replace(',', '.') : value
+}
+
+function sumDiscounts(discounts) {
+  return (discounts ?? []).reduce((sum, discount) => {
+    const amount = Number(String(discount.amount ?? '').replace(',', '.'))
+    return Number.isFinite(amount) ? sum + Math.abs(amount) : sum
+  }, 0)
+}
+
+function calculatePaid(total, discounts) {
+  if (total == null || String(total).trim() === '') return null
+  const numericTotal = Number(String(total ?? '').replace(',', '.'))
+  if (!Number.isFinite(numericTotal)) return null
+  return numericTotal - sumDiscounts(discounts)
 }
 
 /**
@@ -664,5 +821,5 @@ function fmtPlain(value) {
 }
 
 function fmt(value) {
-  return Number(value).toFixed(2).replace('.', ',')
+  return Number(String(value).replace(',', '.')).toFixed(2).replace('.', ',')
 }
